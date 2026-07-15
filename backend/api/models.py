@@ -14,3 +14,25 @@ class Category(models.Model):
 
 	def __str__(self):
 		return self.name
+	
+
+class SavedList(models.Model):
+	user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="saved_lists")
+	name = models.CharField(max_length=150)
+	description = models.TextField(blank=True, default="")
+	created_at = models.DateTimeField(auto_now_add=True)
+	updated_at = models.DateTimeField(auto_now=True)
+
+	class Meta:
+		ordering = ["-updated_at"]
+
+
+class SavedListItem(models.Model):
+	saved_list = models.ForeignKey(SavedList, on_delete=models.CASCADE, related_name="items")
+	category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
+	name = models.CharField(max_length=150)
+	quantity = models.PositiveIntegerField(null=True, blank=True)
+	order = models.PositiveIntegerField(default=0)
+
+	class Meta:
+		ordering = ["order", "id"]

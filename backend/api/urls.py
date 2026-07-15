@@ -1,7 +1,7 @@
 from django.urls import path
 from . import views_auth
 from rest_framework.routers import DefaultRouter
-from .views import CategoryViewSet
+from .views import CategoryViewSet, SavedListViewSet, SavedListItemViewSet
 
 urlpatterns = [
 	path("auth/register/", views_auth.register),
@@ -12,5 +12,8 @@ urlpatterns = [
 
 router = DefaultRouter()
 router.register("categories", CategoryViewSet, basename="category")
+router.register("saved-lists", SavedListViewSet, basename="savedlist")
+router.register("saved-list-items", SavedListItemViewSet, basename="savedlistitem")
 
 urlpatterns += router.urls
+
