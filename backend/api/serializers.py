@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, SavedList, SavedListItem
+from .models import Category, SavedList, SavedListItem, Trip, TripItem
 
 class CategorySerializer(serializers.ModelSerializer):
 	class Meta:
@@ -25,3 +25,31 @@ class SavedListSerializer(serializers.ModelSerializer):
 	class Meta:
 		model = SavedList
 		fields = ["id", "name", "description", "items", "created_at", "updated_at"]
+
+
+class TripItemSerializer(serializers.ModelSerializer):
+	class Meta:
+		model = TripItem
+		fields = ["id", "trip", "category", "name", "quantity", "packed", "order"]
+
+	def validate_trip(self, value):
+		if value.user_id != self.context["request"].user.id:
+			raise serializers.ValidationError("Not your trip.")
+		return value
+ 
+
+class TripListSerializer(serializers.ModelSerializer):
+	packed_count = serializers.IntegerField(read_only=True)
+	total_count = serializers.IntegerField(read_only=True)
+
+	class Meta:
+		model = Trip
+		fields = ["id", "name", "days", "start_date", "end_date", "packed_count", "total_count", "created_at", "updated_at"]
+
+  
+class TripDetailSerializer(serializers.ModelSerializer):
+	items = TripItemSerializer(many=True, read_only=True)
+
+	class Meta:
+		model = Trip
+		fields = ["id", "name", "days", "start_date", "end_date", "items", "created_at", "updated_at"]

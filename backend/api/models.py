@@ -36,3 +36,28 @@ class SavedListItem(models.Model):
 
 	class Meta:
 		ordering = ["order", "id"]
+
+
+class Trip(models.Model):
+	user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="trips")
+	name = models.CharField(max_length=150)
+	days = models.PositiveIntegerField(null=True, blank=True)
+	start_date = models.DateField(null=True, blank=True)
+	end_date = models.DateField(null=True, blank=True)
+	created_at = models.DateTimeField(auto_now_add=True)
+	updated_at = models.DateTimeField(auto_now=True)
+
+	class Meta:
+		ordering = ["-updated_at"]
+		
+
+class TripItem(models.Model):
+	trip = models.ForeignKey(Trip, on_delete=models.CASCADE, related_name="items")
+	category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
+	name = models.CharField(max_length=150)
+	quantity = models.PositiveIntegerField(null=True, blank=True)
+	packed = models.BooleanField(default=False)
+	order = models.PositiveIntegerField(default=0)
+
+	class Meta:
+		ordering = ["order", "id"]
