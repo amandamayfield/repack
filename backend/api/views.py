@@ -5,6 +5,11 @@ from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Count, Q
 
+from django.db import transaction
+from rest_framework import status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+
 from .permissions import IsOwner
 from .models import Category, SavedList, SavedListItem, Trip, TripItem
 from .serializers import CategorySerializer, SavedListSerializer, SavedListItemSerializer, TripListSerializer, TripItemSerializer, TripDetailSerializer
@@ -53,8 +58,23 @@ class TripViewSet(OwnedModelViewSet):
 			qs = qs.annotate(
 				total_count=Count("items", distinct=True),
 				packed_count=Count("items", filter=Q(items__packed=True), distinct=True),
-)
+			)
 		return qs
+	
+	@action(detail=True, methods=["post"])
+	def import_(self, request, pk=None):
+		trip = self.get_object() # ownership-scoped: 404s if not yours
+		saved_list = SavedList.objects.filter(
+			id=request.data.get("saved_list_id"), user=request.user).first()
+		if saved_list is None:
+			return Response({"detail": "List not found."}, status=status.HTTP_404_NOT_FOUND)
+			
+		with transaction.atomic():
+			TripItem.objects.bulk_create([
+				TripItem(trip=trip, category_id=src.category_id, name=src.name, quantity=src.quantity, order=src.order, packed=False)
+				for src in saved_list.items.all()
+			])
+		return Response(status=status.HTTP_201_CREATED)
 
   
 class TripItemViewSet(viewsets.ModelViewSet):
