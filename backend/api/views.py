@@ -61,8 +61,8 @@ class TripViewSet(OwnedModelViewSet):
 			)
 		return qs
 	
-	@action(detail=True, methods=["post"])
-	def import_(self, request, pk=None):
+	@action(detail=True, methods=["post"], url_path="import-list")
+	def import_list(self, request, pk=None):
 		trip = self.get_object() # ownership-scoped: 404s if not yours
 		saved_list = SavedList.objects.filter(
 			id=request.data.get("saved_list_id"), user=request.user).first()

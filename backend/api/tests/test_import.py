@@ -24,7 +24,7 @@ def test_import_copies_items(auth_client):
 	c, _ = auth_client
 	lst = _seed_list(c)
 	trip = c.post("/api/trips/", {"name": "Yosemite"}, format="json").data
-	r = c.post(f"/api/trips/{trip['id']}/import_/", {"saved_list_id": lst["id"]}, format="json")
+	r = c.post(f"/api/trips/{trip['id']}/import-list/", {"saved_list_id": lst["id"]}, format="json")
 	assert r.status_code == 201
 	items = c.get(f"/api/trips/{trip['id']}/").data["items"]
 	names = {i["name"]: i for i in items}
@@ -38,7 +38,7 @@ def test_import_decouples_from_blueprint(auth_client):
 	c, _ = auth_client
 	lst = _seed_list(c)
 	trip = c.post("/api/trips/", {"name": "Yosemite"}, format="json").data
-	c.post(f"/api/trips/{trip['id']}/import_/", {"saved_list_id": lst["id"]}, format="json")
+	c.post(f"/api/trips/{trip['id']}/import-list/", {"saved_list_id": lst["id"]}, format="json")
 	# Pack an item in the TRIP:
 	trip_item_id = c.get(f"/api/trips/{trip['id']}/").data["items"][0]["id"]
 	c.patch(f"/api/trip-items/{trip_item_id}/", {"packed": True}, format="json")
@@ -54,5 +54,5 @@ def test_cannot_import_others_list(auth_client):
 	trip = c.post("/api/trips/", {"name": "Yosemite"}, format="json").data
 	adam = APIClient(); adam.force_authenticate(User.objects.create_user("adam", password="pw12345!"))
 	adam_list = adam.post("/api/saved-lists/", {"name": "Adam"}, format="json").data
-	r = c.post(f"/api/trips/{trip['id']}/import_/", {"saved_list_id": adam_list["id"]}, format="json")
+	r = c.post(f"/api/trips/{trip['id']}/import-list/", {"saved_list_id": adam_list["id"]}, format="json")
 	assert r.status_code in (400, 404)
