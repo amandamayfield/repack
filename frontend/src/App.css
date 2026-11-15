@@ -1,4 +1,814 @@
+/* RePack: outdoorsy & warm.
+   Canvas and pine for the everyday UI; trail-blaze ochre is saved for one
+   moment (a fully packed trip). Headings in a slab (gear-label feel), body in
+   a face built for legibility, since most of the app is a checklist. */
+
+:root {
+  --canvas: #f4f2e9;
+  --surface: #fffdf6;
+  --ink: #1f2a24;
+  --ink-muted: #5b6760;
+  --line: #d8d6c8;
+  --forest: #2f5d46;
+  --forest-strong: #244a37;
+  --on-forest: #fffdf6;
+  --moss: #dce6d5;
+  --blaze: #d9a441;
+  --berry: #9b2f3f;
+  --berry-soft: #f5e1e3;
+  --backdrop: rgb(31 42 36 / 45%);
+  --shadow: 0 1px 0 rgb(31 42 36 / 6%), 0 6px 18px -10px rgb(31 42 36 / 30%);
+
+  --font-display: "Zilla Slab", "Rockwell", "Roboto Slab", Georgia, serif;
+  --font-body:
+    "Atkinson Hyperlegible", "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  --radius-sm: 6px;
+  --radius: 12px;
+  --radius-lg: 20px;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #141b17;
+    --surface: #1c2620;
+    --ink: #e7ebe2;
+    --ink-muted: #a3ada6;
+    --line: #34423a;
+    --forest: #7fb394;
+    --forest-strong: #9cc8ad;
+    --on-forest: #11201a;
+    --moss: #26382d;
+    --blaze: #e2b65a;
+    --berry: #e58b96;
+    --berry-soft: #3a2328;
+    --backdrop: rgb(0 0 0 / 60%);
+    --shadow: 0 1px 0 rgb(0 0 0 / 30%), 0 8px 20px -12px rgb(0 0 0 / 70%);
+    color-scheme: dark;
+  }
+}
+
+/* ---------- Base ---------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
-  box-sizing: border-box;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 1.0625rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.15;
+  margin: 0;
+}
+
+h1 {
+  font-size: clamp(2rem, 5vw, 2.75rem);
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-size: 1.375rem;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--forest);
+  text-underline-offset: 0.18em;
+}
+
+:focus-visible {
+  outline: 3px solid var(--forest);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------- Shell ---------- */
+
+.app-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-4) var(--space-4);
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.app-nav {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.app-nav a {
+  padding: var(--space-1) var(--space-3);
+  border-radius: 999px;
+  color: var(--ink-muted);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.app-nav a:hover {
+  color: var(--ink);
+}
+
+.app-nav a.active {
+  background: var(--moss);
+  color: var(--forest-strong);
+}
+
+.app-account {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-left: auto;
+  color: var(--ink-muted);
+  font-size: 0.9375rem;
+}
+
+.app-main {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 0 var(--space-4) var(--space-7);
+}
+
+/* ---------- Page scaffolding ---------- */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding-top: var(--space-4);
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.page-header__description {
+  margin-top: var(--space-2);
+  color: var(--ink-muted);
+  max-width: 34em;
+}
+
+.back-link {
+  margin-bottom: calc(-1 * var(--space-3));
+  font-size: 0.9375rem;
+}
+
+.back-link a {
+  color: var(--ink-muted);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.panel h2 {
+  font-size: 1.125rem;
+}
+
+.empty-state {
+  padding: var(--space-5);
+  border: 2px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--ink-muted);
+  text-align: center;
+}
+
+[role="status"] {
+  color: var(--ink-muted);
+}
+
+/* ---------- Forms ---------- */
+
+.form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3) var(--space-4);
+}
+
+/* A form that is itself the panel (import form): keep the form's row layout
+   over .panel's column, and give its heading a full row. */
+.panel.form {
+  flex-direction: row;
+}
+
+.form > h2 {
+  flex-basis: 100%;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+
+.field--grow {
+  flex: 2 1 14rem;
+}
+
+.field--narrow {
+  flex: 0 1 8rem;
+}
+
+.field label,
+.auth-page label {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+
+input,
+select {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+input:focus-visible,
+select:focus-visible {
+  border-color: var(--forest);
+  outline: none;
+}
+
+.field__hint {
+  font-size: 0.8125rem;
+}
+
+.form__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.form-error {
+  flex-basis: 100%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--berry-soft);
+  color: var(--berry);
+  font-weight: 700;
+}
+
+/* ---------- Buttons ---------- */
+
+.button,
+.auth-page button[type="submit"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-4);
+  border: 2px solid var(--forest);
+  border-radius: var(--radius-sm);
+  background: var(--forest);
+  color: var(--on-forest);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--forest-strong);
+  border-color: var(--forest-strong);
+}
+
+.button:disabled,
+.auth-page button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.button--ghost {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.button--ghost:hover:not(:disabled) {
+  background: var(--moss);
+  border-color: var(--moss);
+}
+
+.button--small {
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-3);
+  font-size: 0.875rem;
+}
+
+.button--quiet-danger {
+  color: var(--berry);
+}
+
+.button--quiet-danger:hover:not(:disabled) {
+  background: var(--berry-soft);
+  border-color: var(--berry-soft);
+}
+
+.button--danger {
+  background: var(--berry);
+  border-color: var(--berry);
+  color: var(--surface);
+}
+
+.button--danger:hover:not(:disabled) {
+  background: var(--berry);
+  border-color: var(--berry);
+  filter: brightness(0.92);
+}
+
+/* ---------- Trips list: luggage tags ---------- */
+
+.trip-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trip-card__link {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  height: 100%;
+  padding: var(--space-5) var(--space-5) var(--space-4) var(--space-7);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  /* A tag: square on the eyelet side, rounded on the far side. */
+  border-radius: var(--radius-sm) var(--radius-lg) var(--radius-lg)
+    var(--radius-sm);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+/* The punched eyelet a luggage tag hangs from. */
+.trip-card__link::before {
+  content: "";
+  position: absolute;
+  top: var(--space-5);
+  left: var(--space-4);
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 3px solid var(--line);
+  border-radius: 50%;
+  background: var(--canvas);
+}
+
+.trip-card__link:hover {
+  border-color: var(--forest);
+}
+
+.trip-card__name {
+  font-size: 1.375rem;
+}
+
+.trip-card__dates,
+.trip-card__count {
+  color: var(--ink-muted);
+  font-size: 0.9375rem;
+}
+
+.progress-bar {
+  height: 0.5rem;
+  margin-top: auto;
+  border-radius: 999px;
+  background: var(--moss);
+  overflow: hidden;
+}
+
+.progress-bar__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--forest);
+  transition: width 300ms ease;
+}
+
+/* ---------- Trip page hero: the ring ---------- */
+
+.trip-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-5) var(--space-6);
+}
+
+.trip-hero__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1 1 14rem;
+}
+
+.trip-hero__dates {
+  color: var(--ink-muted);
+}
+
+.trip-hero__count {
+  font-weight: 700;
+}
+
+.trip-hero__actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.progress-ring {
+  position: relative;
+  flex: none;
+  width: 10.5rem;
+  height: 10.5rem;
+}
+
+.progress-ring svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.progress-ring__track {
+  fill: none;
+  stroke: var(--moss);
+}
+
+.progress-ring__fill {
+  fill: none;
+  stroke: var(--forest);
+  stroke-linecap: round;
+  transition:
+    stroke-dashoffset 500ms cubic-bezier(0.3, 0.7, 0.4, 1),
+    stroke 300ms ease;
+}
+
+.progress-ring__center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.progress-ring__count {
+  font-family: var(--font-display);
+  font-size: 3rem;
+  font-weight: 700;
+}
+
+.progress-ring__of {
+  margin-top: var(--space-1);
+  color: var(--ink-muted);
+  font-size: 0.9375rem;
+}
+
+/* 100%: the one place ochre appears. The ring turns trail-blaze and a stamp
+   lands in the middle. */
+.progress-ring--complete .progress-ring__fill {
+  stroke: var(--blaze);
+}
+
+.progress-ring__stamp {
+  padding: var(--space-1) var(--space-3);
+  border: 3px solid var(--blaze);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  transform: rotate(-8deg);
+  animation: stamp 420ms cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+@keyframes stamp {
+  from {
+    opacity: 0;
+    transform: rotate(-8deg) scale(1.8);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-8deg) scale(1);
+  }
+}
+
+/* ---------- Category groups & items ---------- */
+
+.category-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.category-group__header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding-bottom: var(--space-1);
+  border-bottom: 2px solid var(--line);
+  font-size: 1.25rem;
+}
+
+.category-group__count {
+  margin-left: auto;
+  color: var(--ink-muted);
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  font-weight: 400;
+}
+
+.item-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 3rem;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.item-row:hover {
+  background: var(--surface);
+}
+
+.item-row--editing {
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.item-row--editing .form {
+  flex: 1;
+}
+
+.item-row__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
+  cursor: default;
+}
+
+label.item-row__label {
+  cursor: pointer;
+}
+
+.item-row__check {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--forest);
+  cursor: pointer;
+}
+
+.item-row--packed .item-row__label span {
+  color: var(--ink-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  text-decoration-color: var(--forest);
+}
+
+.item-row__actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+/* On devices that hover, keep rows calm until you point at them. Touch
+   devices always show the actions. */
+@media (hover: hover) {
+  .item-row .item-row__actions {
+    opacity: 0;
+  }
+
+  .item-row:hover .item-row__actions,
+  .item-row:focus-within .item-row__actions {
+    opacity: 1;
+  }
+}
+
+.trip-page__tools {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+
+/* ---------- Simple indexes (lists, categories) ---------- */
+
+.list-index {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.list-index__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.list-index__row + .list-index__row {
+  border-top: 1px solid var(--line);
+}
+
+.list-index__row--editing .form {
+  flex: 1;
+}
+
+.list-index__name {
+  font-family: var(--font-display);
+  font-size: 1.1875rem;
+  font-weight: 700;
+}
+
+.list-index__description {
+  color: var(--ink-muted);
+  font-size: 0.9375rem;
+}
+
+/* ---------- Dialog ---------- */
+
+.dialog {
+  width: min(26rem, calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+.dialog::backdrop {
+  background: var(--backdrop);
+}
+
+.dialog[open] {
+  animation: dialog-in 160ms ease-out;
+}
+
+.dialog__title {
+  font-size: 1.375rem;
+}
+
+.dialog__message {
+  margin-top: var(--space-2);
+  color: var(--ink-muted);
+}
+
+.dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* ---------- Login ---------- */
+
+.auth-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 24rem;
+  margin: 12vh auto 0;
+  padding: 0 var(--space-4);
+}
+
+.auth-page::before {
+  content: "RePack";
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--forest);
+}
+
+.auth-page form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.auth-page button[type="submit"] {
+  margin-top: var(--space-3);
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--forest);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  cursor: pointer;
+}
+
+/* ---------- Small screens & motion ---------- */
+
+@media (max-width: 30rem) {
+  .trip-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .page-header {
+    flex-direction: column;
+  }
+
+  .list-index__row {
+    flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }
