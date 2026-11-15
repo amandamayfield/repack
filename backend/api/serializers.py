@@ -56,7 +56,7 @@ class TripListSerializer(serializers.ModelSerializer):
 
 	class Meta:
 		model = Trip
-		fields = ["id", "name", "days", "start_date", "end_date", "packed_count", "total_count", "created_at", "updated_at"]
+		fields = ["id", "name", "start_date", "end_date", "packed_count", "total_count", "created_at", "updated_at"]
 
   
 class TripDetailSerializer(serializers.ModelSerializer):
@@ -66,7 +66,7 @@ class TripDetailSerializer(serializers.ModelSerializer):
 
 	class Meta:
 		model = Trip
-		fields = ["id", "name", "days", "start_date", "end_date", "imported_lists", "items", "created_at", "updated_at"]
+		fields = ["id", "name", "start_date", "end_date", "imported_lists", "items", "created_at", "updated_at"]
 
 	def validate(self, attrs):
 		# On PATCH only one date may be sent; compare against the stored other one.

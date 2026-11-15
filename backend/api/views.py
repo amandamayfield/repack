@@ -1,6 +1,3 @@
-from django.shortcuts import render
-
-# Create your views here.
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Count, Max, Q
@@ -67,8 +64,8 @@ class TripViewSet(OwnedModelViewSet):
 		qs = super().get_queryset() # already filtered to request.user
 		if self.action == "list":
 			qs = qs.annotate(
-				total_count=Count("items", distinct=True),
-				packed_count=Count("items", filter=Q(items__packed=True), distinct=True),
+				total_count=Count("items"),
+				packed_count=Count("items", filter=Q(items__packed=True)),
 			)
 		return qs
 	

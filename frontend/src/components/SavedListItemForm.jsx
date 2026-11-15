@@ -40,9 +40,10 @@ export default function SavedListItemForm({
         setQuantity("");
         setCategory("");
       }
-    } catch (err) {
-      // handle403 lives in the parent; a thrown error here just re-enables the form.
-      setError(err?.handled ? null : "Could not save the item. Please try again.");
+    } catch {
+      // The parent already handled 403s (it resolves instead of throwing), so
+      // anything that reaches here is a real save failure.
+      setError("Could not save the item. Please try again.");
     } finally {
       setPending(false);
     }

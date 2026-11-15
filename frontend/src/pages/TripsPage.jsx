@@ -9,7 +9,8 @@ export default function TripsPage() {
   const { handle403 } = useAuth();
   const { data: trips, loading, error, reload } = useFetch("/trips/");
   const [name, setName] = useState("");
-  const [days, setDays] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [pending, setPending] = useState(false);
   const [formError, setFormError] = useState(null);
 
@@ -21,10 +22,12 @@ export default function TripsPage() {
     setFormError(null);
     try {
       const body = { name: trimmed };
-      if (days !== "") body.days = Number(days);
+      if (startDate !== "") body.start_date = startDate;
+      if (endDate !== "") body.end_date = endDate;
       await api("/trips/", { method: "POST", body });
       setName("");
-      setDays("");
+      setStartDate("");
+      setEndDate("");
       reload();
     } catch (err) {
       if (!handle403(err)) setFormError("Could not create the trip. Please try again.");
@@ -49,14 +52,24 @@ export default function TripsPage() {
           disabled={pending}
         />
 
-        <label htmlFor="trip-days">Days (optional)</label>
+        <label htmlFor="trip-start">Start date (optional)</label>
         <input
-          id="trip-days"
-          name="days"
-          type="number"
-          min="1"
-          value={days}
-          onChange={(e) => setDays(e.target.value)}
+          id="trip-start"
+          name="start_date"
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          disabled={pending}
+        />
+
+        <label htmlFor="trip-end">End date (optional)</label>
+        <input
+          id="trip-end"
+          name="end_date"
+          type="date"
+          min={startDate || undefined}
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
           disabled={pending}
         />
 
@@ -83,6 +96,11 @@ export default function TripsPage() {
             <li key={trip.id} className="trip-card">
               <Link to={`/trips/${trip.id}`} className="trip-card__link">
                 <h2 className="trip-card__name">{trip.name}</h2>
+                {(trip.start_date || trip.end_date) && (
+                  <p className="trip-card__dates">
+                    {[trip.start_date, trip.end_date].filter(Boolean).join(" – ")}
+                  </p>
+                )}
                 <ProgressBar
                   value={trip.packed_count}
                   max={trip.total_count}

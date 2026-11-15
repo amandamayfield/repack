@@ -159,7 +159,7 @@ REST_FRAMEWORK = {
 	"DEFAULT_PERMISSION_CLASSES": [
 		"rest_framework.permissions.IsAuthenticated",
 	],
-	# Used by api.views_auth.AuthThrottle (login/register only).
+	# Used by api.auth.AuthThrottle (login/register only).
 	"DEFAULT_THROTTLE_RATES": {
 		"auth": "10/min",
 	},

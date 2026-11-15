@@ -13,7 +13,7 @@ def auth_client():
 @pytest.mark.django_db
 def test_create_trip_and_toggle_packed(auth_client):
 	c, _ = auth_client
-	trip = c.post("/api/trips/", {"name": "Beach", "days": 3}, format="json").data
+	trip = c.post("/api/trips/", {"name": "Beach", "start_date": "2026-07-01", "end_date": "2026-07-03"}, format="json").data
 	item = c.post("/api/trip-items/", {"trip": trip["id"], "name": "Towel", "order": 0}, format="json").data
 	assert item["packed"] is False
 	r = c.patch(f"/api/trip-items/{item['id']}/", {"packed": True}, format="json")
@@ -66,3 +66,12 @@ def test_trip_end_date_cannot_precede_start(auth_client):
 	assert r.status_code == 400
 	r = c.patch(f"/api/trips/{trip['id']}/", {"end_date": "2026-07-12"}, format="json")
 	assert r.status_code == 200
+
+
+@pytest.mark.django_db
+def test_trip_dates_round_trip_and_days_is_gone(auth_client):
+	c, _ = auth_client
+	c.post("/api/trips/", {"name": "Beach", "start_date": "2026-07-01", "end_date": "2026-07-03"}, format="json")
+	row = c.get("/api/trips/").data[0]
+	assert (row["start_date"], row["end_date"]) == ("2026-07-01", "2026-07-03")
+	assert "days" not in row

@@ -99,12 +99,7 @@ function TripDetail({ trip, categories, reload, handle403 }) {
               </h2>
               <ul className="item-list">
                 {group.items.map((item) => (
-                  <ItemRow
-                    key={item.id}
-                    item={item}
-                    packable
-                    onToggle={handleToggle}
-                  />
+                  <ItemRow key={item.id} item={item} onToggle={handleToggle} />
                 ))}
               </ul>
             </section>
