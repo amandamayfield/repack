@@ -7,7 +7,7 @@ Views call these explicitly, inside the same transaction as the list change.
 from django.db.models import Q
 from django.utils import timezone
 
-from .models import TripItem, TripSection
+from .models import Trip, TripItem, TripSection
 
 
 def _current(prefix=""):
@@ -92,3 +92,29 @@ def catch_up_trip(trip):
 				item.quantity, item.packed = source.quantity, False
 			item.save(update_fields=["name", "quantity", "packed"])
 		_renumber(section)
+
+
+def duplicate_trip(trip):
+	"""A fresh, undated, unticked copy. Synced sections are rebuilt from their lists as they are now,
+	keeping this trip's own amounts and deletions; everything else is copied."""
+	copy = Trip.objects.create(user=trip.user, name=f"Copy of {trip.name}"[:150])
+	for section in trip.sections.prefetch_related("items"):
+		new = TripSection.objects.create(
+			trip=copy, saved_list=section.saved_list, custom_name=section.custom_name, order=section.order
+		)
+		items = section.items.all()
+		if section.saved_list_id is not None:
+			changes = {i.source_item_id: i for i in items if i.from_list and i.source_item_id}
+			for source in section.saved_list.items.all():
+				item = _copy(new, source)
+				old = changes.get(source.id)
+				if old is not None:
+					item.removed = old.removed
+					if old.quantity_overridden:
+						item.quantity, item.quantity_overridden = old.quantity, True
+				item.save()
+		TripItem.objects.bulk_create(
+			TripItem(section=new, name=i.name, quantity=i.quantity, order=i.order) for i in items if not i.from_list
+		)
+		_renumber(new)
+	return copy

@@ -136,7 +136,8 @@ class TripViewSet(OwnedModelViewSet):
 	@action(detail=True, methods=["post"])
 	def duplicate(self, request, pk=None):
 		trip = self.get_object()
-		copy = Trip.objects.create(user=request.user, name=f"Copy of {trip.name}"[:150])
+		with transaction.atomic():
+			copy = sync.duplicate_trip(trip)
 		return Response(TripDetailSerializer(copy, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
