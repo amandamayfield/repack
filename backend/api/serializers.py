@@ -12,6 +12,9 @@ class SavedListItemSerializer(serializers.ModelSerializer):
 		# Prevent attaching an item to a list you don't own.
 		if value.user_id != self.context["request"].user.id:
 			raise serializers.ValidationError("Not your list.")
+		# Trips sync from the item's list, so moving it would leave them linked to the wrong one.
+		if self.instance is not None and value != self.instance.saved_list:
+			raise serializers.ValidationError("Items can't be moved to another list.")
 		return value
 
 

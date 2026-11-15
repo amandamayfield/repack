@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from . import sync
 from .models import SavedList, SavedListItem, Trip, TripItem, TripSection
 from .permissions import IsOwner
 from .serializers import (
@@ -50,6 +51,18 @@ class SavedListViewSet(OwnedModelViewSet):
 			qs = qs.prefetch_related("items")
 		return qs
 
+	@transaction.atomic
+	def perform_update(self, serializer):
+		old_name = serializer.instance.name
+		saved_list = serializer.save()
+		if saved_list.name != old_name:
+			sync.sync_list_renamed(saved_list, old_name)
+
+	@transaction.atomic
+	def perform_destroy(self, saved_list):
+		sync.sync_list_deleted(saved_list)
+		saved_list.delete()
+
 
 class SavedListItemViewSet(viewsets.ModelViewSet):
 	permission_classes = [IsAuthenticated]
@@ -62,7 +75,20 @@ class SavedListItemViewSet(viewsets.ModelViewSet):
 	def perform_create(self, serializer):
 		# The server owns ordering on create, so deletes can't cause collisions.
 		saved_list = serializer.validated_data["saved_list"]
-		serializer.save(order=next_order(saved_list.items.all()))
+		with transaction.atomic():
+			item = serializer.save(order=next_order(saved_list.items.all()))
+			sync.sync_item_created(item)
+
+	@transaction.atomic
+	def perform_update(self, serializer):
+		old_name, old_quantity = serializer.instance.name, serializer.instance.quantity
+		item = serializer.save()
+		sync.sync_item_updated(item, old_name, old_quantity)
+
+	@transaction.atomic
+	def perform_destroy(self, item):
+		sync.sync_item_deleted(item)
+		item.delete()
 
 
 class TripViewSet(OwnedModelViewSet):
@@ -83,6 +109,13 @@ class TripViewSet(OwnedModelViewSet):
 		else:
 			qs = qs.prefetch_related("sections__saved_list", "sections__items")
 		return qs
+
+	@transaction.atomic
+	def perform_update(self, serializer):
+		was_current = sync.is_current(serializer.instance)
+		trip = serializer.save()
+		if not was_current and sync.is_current(trip):
+			sync.catch_up_trip(trip)
 
 	@action(detail=True, methods=["post"], url_path="reorder-sections")
 	def reorder_sections(self, request, pk=None):
