@@ -108,7 +108,7 @@ Custom action:
 
 ## Conventions & gotchas
 
-- **AI-generated files live in `.claude/`:** audits (`.claude/initial-user-audit.md`, `.claude/user-audits/`), design docs (`.claude/specs/`), plans (`.claude/plans/`). This overrides any skill's default location, such as `docs/superpowers/`. `CLAUDE.md` stays at the repo root.
+- **AI-generated files live in `.claude/`:** audits (`.claude/initial-user-audit.md`, `.claude/user-audits/`), design docs (`.claude/specs/`), plans (`.claude/plans/`). This overrides any skill's default location, such as `docs/superpowers/`. The whole `.claude/` folder is git-ignored and never committed. `CLAUDE.md` stays at the repo root.
 - **Commits:** one line in the form `feat|fix|test: short description`, with **no `Co-Authored-By` or other trailers**. Don't commit unless asked.
 - **Formatting:**
   - Backend uses ruff (`backend/pyproject.toml`): tabs, line length 120, import sorting, RUF012 ignored for Django's list class attributes, migrations excluded.

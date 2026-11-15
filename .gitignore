@@ -1,6 +1,3 @@
 .DS_Store
-# AI-generated docs stay local (the persona-audit skill under .claude/skills/ is committed)
-.claude/*.md
-.claude/specs/
-.claude/plans/
-.claude/user-audits/
+# Claude Code's folder (skills, personas, audits, specs, plans) stays local
+.claude/
