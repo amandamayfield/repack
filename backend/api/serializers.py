@@ -7,7 +7,19 @@ class CategorySerializer(serializers.ModelSerializer):
 		fields = ["id", "name", "order"]
 
 
-class SavedListItemSerializer(serializers.ModelSerializer):
+class OwnedCategoryMixin:
+	"""Limit the `category` choices to the current user's categories, so an
+	item can't point at someone else's row (it 400s as 'does not exist')."""
+
+	def get_fields(self):
+		fields = super().get_fields()
+		request = self.context.get("request")
+		if request is not None:
+			fields["category"].queryset = Category.objects.filter(user=request.user)
+		return fields
+
+
+class SavedListItemSerializer(OwnedCategoryMixin, serializers.ModelSerializer):
 	class Meta:
 		model = SavedListItem
 		fields = ["id", "saved_list", "category", "name", "quantity", "order"]
@@ -27,7 +39,7 @@ class SavedListSerializer(serializers.ModelSerializer):
 		fields = ["id", "name", "description", "items", "created_at", "updated_at"]
 
 
-class TripItemSerializer(serializers.ModelSerializer):
+class TripItemSerializer(OwnedCategoryMixin, serializers.ModelSerializer):
 	class Meta:
 		model = TripItem
 		fields = ["id", "trip", "category", "name", "quantity", "packed", "order"]

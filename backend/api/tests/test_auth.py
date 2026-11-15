@@ -27,3 +27,24 @@ def test_logout_clears_session():
 	c.post("/api/auth/login/", {"username": "amanda", "password": "pw12345!"}, format="json")
 	assert c.post("/api/auth/logout/").status_code == 204
 	assert c.get("/api/auth/me/").status_code == 403
+
+@pytest.mark.django_db
+def test_register_rejects_weak_password():
+	c = APIClient()
+	r = c.post("/api/auth/register/", {"username": "amanda", "password": "a"}, format="json")
+	assert r.status_code == 400
+	assert "password" in r.data
+
+@pytest.mark.django_db
+def test_register_rejects_password_similar_to_username():
+	c = APIClient()
+	r = c.post("/api/auth/register/", {"username": "amandamayfield", "password": "amandamayfield1"}, format="json")
+	assert r.status_code == 400
+	assert "password" in r.data
+
+@pytest.mark.django_db
+def test_login_is_rate_limited():
+	c = APIClient()
+	for _ in range(10):
+		assert c.post("/api/auth/login/", {"username": "x", "password": "wrong"}, format="json").status_code == 400
+	assert c.post("/api/auth/login/", {"username": "x", "password": "wrong"}, format="json").status_code == 429

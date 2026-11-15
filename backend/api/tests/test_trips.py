@@ -39,3 +39,16 @@ def test_trip_isolation(auth_client):
 	trip = c.post("/api/trips/", {"name": "Beach"}, format="json").data
 	adam = APIClient(); adam.force_authenticate(User.objects.create_user("adam", password="pw12345!"))
 	assert adam.get(f"/api/trips/{trip['id']}/").status_code == 404
+
+@pytest.mark.django_db
+def test_trip_item_rejects_others_category(auth_client):
+	c, _ = auth_client
+	trip = c.post("/api/trips/", {"name": "Beach"}, format="json").data
+	item = c.post("/api/trip-items/", {"trip": trip["id"], "name": "Towel", "order": 0}, format="json").data
+	adam = APIClient(); adam.force_authenticate(User.objects.create_user("adam", password="pw12345!"))
+	adam_cat = adam.post("/api/categories/", {"name": "Adam Cat", "order": 0}, format="json").data
+	# Both on create and when re-pointing an existing item via PATCH.
+	r = c.post("/api/trip-items/", {"trip": trip["id"], "category": adam_cat["id"], "name": "X", "order": 1}, format="json")
+	assert r.status_code == 400
+	r = c.patch(f"/api/trip-items/{item['id']}/", {"category": adam_cat["id"]}, format="json")
+	assert r.status_code == 400

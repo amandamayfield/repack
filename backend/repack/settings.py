@@ -21,18 +21,27 @@ environ.Env.read_env(BASE_DIR / ".env")
 
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 
-DEBUG = env.bool("DJANGO_DEBUG", default=True)
+# Fails closed: a missing DJANGO_DEBUG means production mode.
+DEBUG = env.bool("DJANGO_DEBUG", default=False)
 
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
+CSRF_TRUSTED_ORIGINS = env.list(
+	"DJANGO_CSRF_TRUSTED_ORIGINS",
+	default=["http://localhost:5173", "http://127.0.0.1:5173"],
+)
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
+# HTTPS hardening. On by default whenever DEBUG is off; dev stays on plain HTTP.
+SECURE = env.bool("DJANGO_SECURE", default=not DEBUG)
+SECURE_SSL_REDIRECT = SECURE
+SESSION_COOKIE_SECURE = SECURE
+CSRF_COOKIE_SECURE = SECURE
+SECURE_HSTS_SECONDS = 3600 if SECURE else 0
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = []
+# Only trust X-Forwarded-Proto when a proxy we control sets it (e.g. a PaaS
+# load balancer). Enabling this without such a proxy lets clients spoof HTTPS.
+if env.bool("DJANGO_BEHIND_PROXY", default=False):
+	SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 
 # Application definition
@@ -143,4 +152,8 @@ REST_FRAMEWORK = {
 	"DEFAULT_PERMISSION_CLASSES": [
 		"rest_framework.permissions.IsAuthenticated",
 	],
+	# Used by api.views_auth.AuthThrottle (login/register only).
+	"DEFAULT_THROTTLE_RATES": {
+		"auth": "10/min",
+	},
 }
