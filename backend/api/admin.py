@@ -1,11 +1,6 @@
 from django.contrib import admin
 
-from .models import Category, SavedList, SavedListItem, Trip, TripItem
-
-
-@admin.register(Category)
-class CategoryAdmin(admin.ModelAdmin):
-	list_display = ["name", "user", "order"]
+from .models import SavedList, SavedListItem, Trip, TripItem, TripSection
 
 
 @admin.register(SavedList)
@@ -15,7 +10,7 @@ class SavedListAdmin(admin.ModelAdmin):
 
 @admin.register(SavedListItem)
 class SavedListItemAdmin(admin.ModelAdmin):
-	list_display = ["name", "saved_list", "category", "quantity", "order"]
+	list_display = ["name", "saved_list", "quantity", "order"]
 
 
 @admin.register(Trip)
@@ -23,6 +18,11 @@ class TripAdmin(admin.ModelAdmin):
 	list_display = ["name", "user", "start_date", "end_date", "updated_at"]
 
 
+@admin.register(TripSection)
+class TripSectionAdmin(admin.ModelAdmin):
+	list_display = ["display_name", "trip", "saved_list", "order"]
+
+
 @admin.register(TripItem)
 class TripItemAdmin(admin.ModelAdmin):
-	list_display = ["name", "trip", "category", "quantity", "packed", "order"]
+	list_display = ["name", "section", "quantity", "packed", "removed", "order"]

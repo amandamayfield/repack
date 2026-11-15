@@ -27,35 +27,6 @@ def test_cannot_add_item_to_others_list(auth_client, other_client):
 
 
 @pytest.mark.django_db
-def test_item_accepts_own_category(auth_client):
-	c, _ = auth_client
-	lst = c.post("/api/saved-lists/", {"name": "Camping"}, format="json").data
-	cat = c.post("/api/categories/", {"name": "Clothes", "order": 0}, format="json").data
-	r = c.post(
-		"/api/saved-list-items/",
-		{"saved_list": lst["id"], "category": cat["id"], "name": "Shirts", "order": 0},
-		format="json",
-	)
-	assert r.status_code == 201
-	assert r.data["category"] == cat["id"]
-
-
-@pytest.mark.django_db
-def test_item_rejects_others_category(auth_client, other_client):
-	c, _ = auth_client
-	lst = c.post("/api/saved-lists/", {"name": "Camping"}, format="json").data
-	adam = other_client
-	adam_cat = adam.post("/api/categories/", {"name": "Adam Cat", "order": 0}, format="json").data
-	r = c.post(
-		"/api/saved-list-items/",
-		{"saved_list": lst["id"], "category": adam_cat["id"], "name": "Sneaky", "order": 0},
-		format="json",
-	)
-	assert r.status_code == 400
-	assert "category" in r.data
-
-
-@pytest.mark.django_db
 def test_server_assigns_order_ignoring_client_value(auth_client):
 	c, _ = auth_client
 	lst = c.post("/api/saved-lists/", {"name": "Camping"}, format="json").data

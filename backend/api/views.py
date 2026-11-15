@@ -1,14 +1,12 @@
-from django.db import transaction
 from django.db.models import Count, Max, Q
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Category, SavedList, SavedListItem, Trip, TripItem
+from .models import SavedList, SavedListItem, Trip, TripItem
 from .permissions import IsOwner
 from .serializers import (
-	CategorySerializer,
 	SavedListItemSerializer,
 	SavedListSerializer,
 	SavedListSummarySerializer,
@@ -35,15 +33,6 @@ class OwnedModelViewSet(viewsets.ModelViewSet):
 
 	def perform_create(self, serializer):
 		serializer.save(user=self.request.user)
-
-
-class CategoryViewSet(OwnedModelViewSet):
-	queryset = Category.objects.all()
-	serializer_class = CategorySerializer
-
-	def perform_create(self, serializer):
-		# New categories go last, so the UI (which sends no order) lists them as created.
-		serializer.save(user=self.request.user, order=next_order(self.get_queryset()))
 
 
 class SavedListViewSet(OwnedModelViewSet):
@@ -84,81 +73,18 @@ class TripViewSet(OwnedModelViewSet):
 	def get_queryset(self):
 		qs = super().get_queryset()  # already filtered to request.user
 		if self.action == "list":
+			live = Q(sections__items__removed=False)
 			qs = qs.annotate(
-				total_count=Count("items"),
-				packed_count=Count("items", filter=Q(items__packed=True)),
+				total_count=Count("sections__items", filter=live),
+				packed_count=Count("sections__items", filter=live & Q(sections__items__packed=True)),
 			)
 		return qs
-
-	@action(detail=True, methods=["post"], url_path="import-list")
-	def import_list(self, request, pk=None):
-		trip = self.get_object()  # ownership-scoped: 404s if not yours
-		saved_list = SavedList.objects.filter(id=request.data.get("saved_list_id"), user=request.user).first()
-		if saved_list is None:
-			return Response({"detail": "List not found."}, status=status.HTTP_404_NOT_FOUND)
-
-		with transaction.atomic():
-			# Lock the trip row so two simultaneous imports can't both pass the check.
-			trip = Trip.objects.select_for_update().get(pk=trip.pk)
-			if trip.imported_lists.filter(pk=saved_list.pk).exists():
-				return Response(
-					{"detail": "This list has already been imported into this trip."}, status=status.HTTP_409_CONFLICT
-				)
-			trip.imported_lists.add(saved_list)
-			# Append after the trip's existing items instead of reusing the
-			# template's order values, which would collide with them.
-			start = next_order(trip.items.all())
-			TripItem.objects.bulk_create(
-				[
-					TripItem(
-						trip=trip,
-						category_id=src.category_id,
-						name=src.name,
-						quantity=src.quantity,
-						order=start + i,
-						packed=False,
-					)
-					for i, src in enumerate(saved_list.items.all())
-				]
-			)
-		return Response(status=status.HTTP_201_CREATED)
 
 	@action(detail=True, methods=["post"])
 	def duplicate(self, request, pk=None):
 		trip = self.get_object()
-		with transaction.atomic():
-			copy = Trip.objects.create(user=request.user, name=f"Copy of {trip.name}"[:150])
-			copy.imported_lists.set(trip.imported_lists.all())
-			# The copy starts unpacked: it's a fresh trip, not a snapshot.
-			TripItem.objects.bulk_create(
-				[
-					TripItem(trip=copy, category_id=i.category_id, name=i.name, quantity=i.quantity, order=i.order)
-					for i in trip.items.all()
-				]
-			)
+		copy = Trip.objects.create(user=request.user, name=f"Copy of {trip.name}"[:150])
 		return Response(TripDetailSerializer(copy, context={"request": request}).data, status=status.HTTP_201_CREATED)
-
-	@action(detail=True, methods=["post"], url_path="save-as-list")
-	def save_as_list(self, request, pk=None):
-		trip = self.get_object()
-		name = str(request.data.get("name", "")).strip()
-		if not name:
-			return Response({"name": ["This field may not be blank."]}, status=status.HTTP_400_BAD_REQUEST)
-		with transaction.atomic():
-			saved_list = SavedList.objects.create(user=request.user, name=name[:150])
-			SavedListItem.objects.bulk_create(
-				[
-					SavedListItem(
-						saved_list=saved_list,
-						category_id=i.category_id,
-						name=i.name,
-						quantity=i.quantity,
-						order=i.order,
-					)
-					for i in trip.items.all()
-				]
-			)
-		return Response({"id": saved_list.id, "name": saved_list.name}, status=status.HTTP_201_CREATED)
 
 
 class TripItemViewSet(viewsets.ModelViewSet):
@@ -166,8 +92,8 @@ class TripItemViewSet(viewsets.ModelViewSet):
 	serializer_class = TripItemSerializer
 
 	def get_queryset(self):
-		return TripItem.objects.filter(trip__user=self.request.user)
+		return TripItem.objects.filter(section__trip__user=self.request.user)
 
 	def perform_create(self, serializer):
-		trip = serializer.validated_data["trip"]
-		serializer.save(order=next_order(trip.items.all()))
+		section = serializer.validated_data["section"]
+		serializer.save(order=next_order(section.items.all()))
