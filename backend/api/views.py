@@ -148,8 +148,16 @@ class TripItemViewSet(viewsets.ModelViewSet):
 	serializer_class = TripItemSerializer
 
 	def get_queryset(self):
-		return TripItem.objects.filter(section__trip__user=self.request.user)
+		return TripItem.objects.filter(section__trip__user=self.request.user, removed=False)
 
 	def perform_create(self, serializer):
 		section = serializer.validated_data["section"]
 		serializer.save(order=next_order(section.items.all()))
+
+	def perform_destroy(self, item):
+		if item.from_list:
+			# Keep the row as a tombstone, so list sync doesn't add the item back.
+			item.removed = True
+			item.save(update_fields=["removed"])
+		else:
+			item.delete()

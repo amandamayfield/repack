@@ -43,6 +43,20 @@ class TripItemSerializer(serializers.ModelSerializer):
 			raise serializers.ValidationError("Not your trip.")
 		return value
 
+	def validate(self, attrs):
+		item = self.instance
+		if item is None:
+			return attrs
+		if "section" in attrs and attrs["section"] != item.section:
+			raise serializers.ValidationError({"section": "Items can't be moved between sections."})
+		# Compare with the stored values, so an edit form that sends the whole item back still works.
+		if item.from_list:
+			if "name" in attrs and attrs["name"] != item.name:
+				raise serializers.ValidationError({"name": "Rename this item on its saved list."})
+			if "quantity" in attrs and attrs["quantity"] != item.quantity:
+				attrs["quantity_overridden"] = True
+		return attrs
+
 
 class TripSectionSerializer(serializers.ModelSerializer):
 	# Written as the trip's own name for the section; read back as what the trip shows.

@@ -210,7 +210,7 @@ def test_counts_exclude_removed(auth_client):
 	trip, lst = _trip(c), _list_with_items(c)
 	section = _add_list(c, trip, lst).data
 	shirts, sunscreen = (TripItem.objects.get(id=i["id"]) for i in section["items"])
-	# Task 3 adds the API for these; set them directly for now.
+	# Set directly: this test is about the counts, not how items get packed or removed.
 	shirts.packed = True
 	shirts.removed = True
 	shirts.save()

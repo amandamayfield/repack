@@ -4,7 +4,7 @@ from api.models import TripSection
 
 
 def _section(trip):
-	"""A trip-only section made directly, until the sections API exists."""
+	"""A trip-only section made directly in the database; these tests aren't about sections."""
 	return TripSection.objects.create(trip_id=trip["id"], custom_name="Beach").id
 
 
