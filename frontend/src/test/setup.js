@@ -20,3 +20,13 @@ if (!dialogProto.showModal) {
     });
   }
 }
+
+// Node 25+ has its own experimental localStorage global, undefined unless Node
+// runs with --localstorage-file, and it shadows jsdom's. Put jsdom's back.
+/* global jsdom -- the jsdom instance Vitest's jsdom environment exposes */
+if (typeof localStorage === "undefined") {
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: jsdom.window.localStorage,
+  });
+}

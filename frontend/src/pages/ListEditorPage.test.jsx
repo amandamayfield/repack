@@ -60,7 +60,7 @@ test("renders items as one flat list in order, with no categories or checkboxes"
   await screen.findByRole("heading", { name: "Camping" });
   const rows = within(screen.getByRole("list")).getAllByRole("listitem");
   expect(rows.map((r) => r.textContent)).toEqual([
-    expect.stringContaining("Shirts (4)"),
+    expect.stringContaining("Shirts ×4"),
     expect.stringContaining("Sunscreen"),
   ]);
   expect(screen.getAllByRole("heading").map((h) => h.textContent)).toEqual([
@@ -114,7 +114,9 @@ test("editing an item PATCHes its fields", async () => {
   await screen.findByRole("heading", { name: "Camping" });
 
   // Open the edit form on the "Shirts" row.
-  const shirtsRow = screen.getByText("Shirts (4)").closest("li");
+  const shirtsRow = screen
+    .getByRole("button", { name: "Edit Shirts" })
+    .closest("li");
   await userEvent.click(
     within(shirtsRow).getByRole("button", { name: "Edit Shirts" }),
   );

@@ -303,11 +303,9 @@ select:focus-visible {
   font-weight: 700;
 }
 
-.form-note {
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  border: 1px solid var(--line);
+.field__hint {
+  color: var(--ink-muted);
+  font-size: 0.8125rem;
 }
 
 /* ---------- Buttons ---------- */
@@ -556,29 +554,70 @@ select:focus-visible {
   }
 }
 
-/* ---------- Category groups & items ---------- */
+/* ---------- Trip sections & items ---------- */
 
-.category-group {
+.trip-sections {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.trip-section {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 
-.category-group__header {
+.trip-section__header {
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
   padding-bottom: var(--space-1);
   border-bottom: 2px solid var(--line);
+}
+
+.trip-section__header h2 {
   font-size: 1.25rem;
 }
 
-.category-group__count {
+.trip-section__count {
   margin-left: auto;
   color: var(--ink-muted);
-  font-family: var(--font-body);
   font-size: 0.9375rem;
-  font-weight: 400;
+  white-space: nowrap;
+}
+
+.trip-section__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.trip-section__body[hidden] {
+  display: none;
+}
+
+.trip-section__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.trip-section__empty {
+  color: var(--ink-muted);
+}
+
+.item-form__name {
+  font-weight: 700;
+}
+
+.add-section {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+.add-section__or {
+  color: var(--ink-muted);
 }
 
 .item-list {
@@ -656,12 +695,6 @@ label.item-row__label {
   .item-row:focus-within .item-row__actions {
     opacity: 1;
   }
-}
-
-.trip-page__tools {
-  display: grid;
-  gap: var(--space-4);
-  margin-top: var(--space-3);
 }
 
 /* ---------- Simple index (lists) ---------- */

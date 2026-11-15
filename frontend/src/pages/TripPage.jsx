@@ -3,54 +3,56 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { useDialog } from "../hooks/useDialog";
 import { useFetch } from "../hooks/useFetch";
-import { computeProgress, groupByCategory } from "../lib/grouping";
+import { computeProgress } from "../lib/progress";
 import { formatDateRange } from "../lib/dates";
 import ProgressRing from "../components/ProgressRing";
-import ItemRow from "../components/ItemRow";
-import ItemForm from "../components/ItemForm";
 import TripForm from "../components/TripForm";
+import TripSection from "../components/TripSection";
+import AddSectionForm from "../components/AddSectionForm";
 
 export default function TripPage() {
   const { id } = useParams();
   const { data: trip, loading, error, reload } = useFetch(`/trips/${id}/`);
-  const { data: categories } = useFetch("/categories/");
 
   if (loading) return <p role="status">Loading trip…</p>;
   if (error) return <p role="alert">Couldn't load this trip.</p>;
   if (!trip) return null;
 
-  return (
-    <TripDetail trip={trip} categories={categories ?? []} reload={reload} />
-  );
+  return <TripDetail trip={trip} reload={reload} />;
 }
 
-function TripDetail({ trip, categories, reload }) {
+function TripDetail({ trip, reload }) {
   const navigate = useNavigate();
-  const { confirm, alert, prompt, dialog } = useDialog();
+  const { confirm, prompt, dialog } = useDialog();
   const [editingTrip, setEditingTrip] = useState(false);
   const [actionError, setActionError] = useState(null);
-  const [savedList, setSavedList] = useState(null); // { id, name } after "Save as list"
 
-  // Local optimistic mirror of the fetched items. Sync during render (not in an
+  // Local optimistic mirror of the fetched sections. Sync during render (not in an
   // effect) whenever a fresh trip arrives — the documented pattern for adjusting
   // state when a prop changes, and it keeps toggles instant without a refetch.
-  const [items, setItems] = useState(trip.items ?? []);
+  const [sections, setSections] = useState(trip.sections ?? []);
   const [seenTrip, setSeenTrip] = useState(trip);
   if (seenTrip !== trip) {
     setSeenTrip(trip);
-    setItems(trip.items ?? []);
+    setSections(trip.sections ?? []);
   }
 
-  const overall = computeProgress(items);
-  const groups = groupByCategory(items, categories);
+  const overall = computeProgress(sections.flatMap((s) => s.items));
   const dates = formatDateRange(trip.start_date, trip.end_date);
+
+  function setPacked(itemId, packed) {
+    setSections((prev) =>
+      prev.map((s) => ({
+        ...s,
+        items: s.items.map((i) => (i.id === itemId ? { ...i, packed } : i)),
+      })),
+    );
+  }
 
   async function handleToggle(item, packed) {
     setActionError(null);
     // Optimistic flip so the ring recomputes immediately.
-    setItems((prev) =>
-      prev.map((it) => (it.id === item.id ? { ...it, packed } : it)),
-    );
+    setPacked(item.id, packed);
     try {
       await api(`/trip-items/${item.id}/`, {
         method: "PATCH",
@@ -58,26 +60,104 @@ function TripDetail({ trip, categories, reload }) {
       });
     } catch {
       // Revert on failure so the checkbox never lies about server state.
-      setItems((prev) =>
-        prev.map((it) => (it.id === item.id ? { ...it, packed: !packed } : it)),
-      );
+      setPacked(item.id, !packed);
       setActionError("Couldn't update that item. Try again.");
     }
   }
 
-  async function handleDeleteItem(item) {
-    const ok = await confirm({
-      title: `Delete "${item.name}"?`,
-      message: "It's removed from this trip only. Your saved lists keep it.",
-    });
-    if (!ok) return;
+  async function run(request, failure) {
     setActionError(null);
     try {
-      await api(`/trip-items/${item.id}/`, { method: "DELETE" });
+      await request();
       reload();
     } catch {
-      setActionError(`Couldn't delete "${item.name}". Try again.`);
+      setActionError(failure);
     }
+  }
+
+  async function handleRename(section) {
+    const name = await prompt({
+      title: "Rename section",
+      message: section.is_synced
+        ? "This renames it on this trip only. Your saved list keeps its name."
+        : undefined,
+      label: "Section name",
+      initialValue: section.name,
+      confirmLabel: "Rename",
+    });
+    if (name === null) return;
+    run(
+      () =>
+        api(`/trip-sections/${section.id}/`, {
+          method: "PATCH",
+          body: { name },
+        }),
+      `Couldn't rename "${section.name}". Try again.`,
+    );
+  }
+
+  function handleMove(section, step) {
+    const ids = sections.map((s) => s.id);
+    const from = ids.indexOf(section.id);
+    [ids[from], ids[from + step]] = [ids[from + step], ids[from]];
+    run(
+      () =>
+        api(`/trips/${trip.id}/reorder-sections/`, {
+          method: "POST",
+          body: { section_ids: ids },
+        }),
+      `Couldn't move "${section.name}". Try again.`,
+    );
+  }
+
+  async function handleRemove(section) {
+    const ok = await confirm({
+      title: `Remove "${section.name}" from this trip?`,
+      message: section.is_synced
+        ? "Its items and ticks on this trip go too. Your saved list isn't affected, and you can add it again later."
+        : "Its items go too. This can't be undone.",
+      confirmLabel: "Remove section",
+    });
+    if (!ok) return;
+    run(
+      () => api(`/trip-sections/${section.id}/`, { method: "DELETE" }),
+      `Couldn't remove "${section.name}". Try again.`,
+    );
+  }
+
+  // Errors propagate to ItemForm, which shows them.
+  async function handleAddItem(section, body) {
+    await api("/trip-items/", {
+      method: "POST",
+      body: { section: section.id, ...body },
+    });
+    reload();
+  }
+
+  async function handleSaveItem(item, body) {
+    await api(`/trip-items/${item.id}/`, { method: "PATCH", body });
+    reload();
+  }
+
+  async function handleDeleteItem(item) {
+    const ok = await confirm(
+      item.is_synced
+        ? {
+            title: `Remove "${item.name}" from this trip?`,
+            message:
+              "Your saved list keeps it, but it won't come back to this trip when the list changes.",
+            confirmLabel: "Remove",
+          }
+        : {
+            title: `Delete "${item.name}"?`,
+            message: "It's only on this trip, so this can't be undone.",
+          },
+    );
+    if (!ok) return;
+    run(
+      () => api(`/trip-items/${item.id}/`, { method: "DELETE" }),
+      `Couldn't delete "${item.name}". Try again.`,
+    );
   }
 
   async function handleDuplicate() {
@@ -89,30 +169,6 @@ function TripDetail({ trip, categories, reload }) {
       navigate(`/trips/${copy.id}`);
     } catch {
       setActionError("Couldn't duplicate this trip. Try again.");
-    }
-  }
-
-  async function handleSaveAsList() {
-    const name = await prompt({
-      title: "Save as a list",
-      message:
-        "Make a saved list from this trip's items, to reuse on future trips.",
-      label: "List name",
-      initialValue: trip.name,
-      confirmLabel: "Save list",
-    });
-    if (name === null) return;
-    setActionError(null);
-    setSavedList(null);
-    try {
-      setSavedList(
-        await api(`/trips/${trip.id}/save-as-list/`, {
-          method: "POST",
-          body: { name },
-        }),
-      );
-    } catch {
-      setActionError("Couldn't save this trip as a list. Try again.");
     }
   }
 
@@ -178,13 +234,6 @@ function TripDetail({ trip, categories, reload }) {
               <button
                 type="button"
                 className="button button--ghost button--small"
-                onClick={handleSaveAsList}
-              >
-                Save as list
-              </button>
-              <button
-                type="button"
-                className="button button--ghost button--small"
                 onClick={() => setEditingTrip(true)}
               >
                 Edit trip
@@ -201,164 +250,44 @@ function TripDetail({ trip, categories, reload }) {
         </header>
       )}
 
-      {savedList && (
-        <p role="status" className="form-note">
-          Saved as a list:{" "}
-          <Link to={`/lists/${savedList.id}`}>{savedList.name}</Link>
-        </p>
-      )}
-
       {actionError && (
         <p role="alert" className="form-error">
           {actionError}
         </p>
       )}
 
-      {items.length === 0 ? (
+      {sections.length === 0 ? (
         <p className="empty-state">
-          Nothing to pack yet. Add an item below, or import one of your saved
-          lists.
+          Nothing to pack yet. Add one of your saved lists, or a new heading,
+          below.
         </p>
       ) : (
-        groups.map((group) => {
-          const gp = computeProgress(group.items);
-          return (
-            <section key={group.name} className="category-group">
-              <h2 className="category-group__header">
-                {group.name}{" "}
-                <span className="category-group__count">
-                  {gp.packed}/{gp.total}
-                </span>
-              </h2>
-              <ul className="item-list">
-                {group.items.map((item) => (
-                  <ItemRow
-                    key={item.id}
-                    item={item}
-                    categories={categories}
-                    onToggle={handleToggle}
-                    onSave={async (body) => {
-                      await api(`/trip-items/${item.id}/`, {
-                        method: "PATCH",
-                        body,
-                      });
-                      reload();
-                    }}
-                    onDelete={() => handleDeleteItem(item)}
-                  />
-                ))}
-              </ul>
-            </section>
-          );
-        })
-      )}
-
-      <div className="trip-page__tools">
-        <section className="panel add-item-form">
-          <h2>Add an item</h2>
-          <ItemForm
-            categories={categories}
-            onSubmit={async (body) => {
-              await api("/trip-items/", {
-                method: "POST",
-                body: { trip: trip.id, ...body },
-              });
-              reload();
-            }}
-            submitLabel="Add item"
-            idPrefix="trip-add"
-          />
-        </section>
-        <ImportListForm
-          tripId={trip.id}
-          importedListIds={trip.imported_lists ?? []}
-          reload={reload}
-          alert={alert}
-        />
-      </div>
-    </section>
-  );
-}
-
-function ImportListForm({ tripId, importedListIds, reload, alert }) {
-  const { data: lists } = useFetch("/saved-lists/");
-  const [selected, setSelected] = useState("");
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState(null);
-
-  function alertAlreadyImported(listId) {
-    const name = lists?.find((l) => l.id === listId)?.name ?? "That list";
-    return alert({
-      title: "Already imported",
-      message: `"${name}" has already been imported into this trip.`,
-    });
-  }
-
-  async function handleImport(event) {
-    event.preventDefault();
-    if (selected === "") return;
-    const listId = Number(selected);
-    // Each list can only be imported into a trip once (the server enforces it too).
-    if (importedListIds.includes(listId)) {
-      alertAlreadyImported(listId);
-      return;
-    }
-    setPending(true);
-    setError(null);
-    try {
-      await api(`/trips/${tripId}/import-list/`, {
-        method: "POST",
-        body: { saved_list_id: listId },
-      });
-      setSelected("");
-      reload();
-    } catch (err) {
-      if (err?.status === 409) {
-        // Imported elsewhere (e.g. another tab) since this page loaded; resync.
-        alertAlreadyImported(listId);
-        setSelected("");
-        reload();
-      } else {
-        setError("Couldn't import that list. Try again.");
-      }
-    } finally {
-      setPending(false);
-    }
-  }
-
-  return (
-    <form onSubmit={handleImport} className="panel form import-form">
-      <h2>Import a saved list</h2>
-      <div className="field field--grow">
-        <label htmlFor="import-list">Saved list</label>
-        <select
-          id="import-list"
-          value={selected}
-          onChange={(e) => setSelected(e.target.value)}
-          disabled={pending}
-        >
-          <option value="">Choose a list…</option>
-          {(lists ?? []).map((list) => (
-            <option key={list.id} value={list.id}>
-              {list.name}
-            </option>
+        <div className="trip-sections">
+          {sections.map((section, index) => (
+            <TripSection
+              key={section.id}
+              section={section}
+              isFirst={index === 0}
+              isLast={index === sections.length - 1}
+              onToggle={handleToggle}
+              onRename={handleRename}
+              onMove={handleMove}
+              onRemove={handleRemove}
+              onAddItem={handleAddItem}
+              onSaveItem={handleSaveItem}
+              onDeleteItem={handleDeleteItem}
+            />
           ))}
-        </select>
-      </div>
-      <div className="form__actions">
-        <button
-          type="submit"
-          className="button"
-          disabled={pending || selected === ""}
-        >
-          {pending ? "Importing…" : "Import"}
-        </button>
-      </div>
-      {error && (
-        <p role="alert" className="form-error">
-          {error}
-        </p>
+        </div>
       )}
-    </form>
+
+      <AddSectionForm
+        tripId={trip.id}
+        listIdsOnTrip={sections
+          .map((s) => s.saved_list)
+          .filter((listId) => listId != null)}
+        onAdded={reload}
+      />
+    </section>
   );
 }

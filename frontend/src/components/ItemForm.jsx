@@ -3,10 +3,12 @@ import { errorMessage } from "../api/ApiError";
 
 // Shared add/edit form for an item on a saved list or a trip. The parent adds
 // the parent id (saved_list / trip) and decides POST vs PATCH; this form only
-// owns the editable fields (name, optional quantity).
+// owns the editable fields (name, optional quantity). `lockName` shows the name
+// as text instead, for trip items synced from a saved list.
 // `onSubmit(body)` returns a promise — the form manages pending/error around it.
 export default function ItemForm({
   initial = {},
+  lockName = false,
   onSubmit,
   onCancel,
   submitLabel = "Save",
@@ -45,17 +47,26 @@ export default function ItemForm({
 
   return (
     <form onSubmit={handleSubmit} className="form form--item">
-      <div className="field field--grow">
-        <label htmlFor={`${idPrefix}-name`}>Item name</label>
-        <input
-          id={`${idPrefix}-name`}
-          type="text"
-          required
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          disabled={pending}
-        />
-      </div>
+      {lockName ? (
+        <div className="field field--grow">
+          <span className="item-form__name">{name}</span>
+          <span className="field__hint">
+            Change the name on its saved list.
+          </span>
+        </div>
+      ) : (
+        <div className="field field--grow">
+          <label htmlFor={`${idPrefix}-name`}>Item name</label>
+          <input
+            id={`${idPrefix}-name`}
+            type="text"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={pending}
+          />
+        </div>
+      )}
 
       <div className="field field--narrow">
         <label htmlFor={`${idPrefix}-qty`}>Quantity (optional)</label>

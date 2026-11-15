@@ -4,15 +4,34 @@ import ItemForm from "./ItemForm";
 // One item on a trip or a saved list, with inline Edit and a Delete action.
 // Pass `onToggle` (trips only) to render the packed checkbox: a native checkbox
 // wrapped in its <label> gives keyboard + screen-reader support for free.
-export default function ItemRow({ item, onToggle, onSave, onDelete }) {
+// `lockName` (synced trip items) limits the edit form to the amount.
+export default function ItemRow({
+  item,
+  lockName = false,
+  onToggle,
+  onSave,
+  onDelete,
+}) {
   const [editing, setEditing] = useState(false);
-  const text = item.quantity ? `${item.name} (${item.quantity})` : item.name;
+  // "×3" reads badly aloud, so screen readers get ", quantity 3" instead.
+  const text = (
+    <span>
+      {item.name}
+      {item.quantity && (
+        <>
+          <span aria-hidden="true"> ×{item.quantity}</span>
+          <span className="visually-hidden">, quantity {item.quantity}</span>
+        </>
+      )}
+    </span>
+  );
 
   if (editing) {
     return (
       <li className="item-row item-row--editing">
         <ItemForm
           initial={item}
+          lockName={lockName}
           onSubmit={async (body) => {
             await onSave(body);
             setEditing(false);
@@ -35,7 +54,7 @@ export default function ItemRow({ item, onToggle, onSave, onDelete }) {
             checked={item.packed}
             onChange={(e) => onToggle(item, e.target.checked)}
           />
-          <span>{text}</span>
+          {text}
         </label>
       ) : (
         <span className="item-row__label">{text}</span>
