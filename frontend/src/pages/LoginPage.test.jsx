@@ -144,3 +144,17 @@ test("being rate limited says so", async () => {
     "Too many attempts",
   );
 });
+
+test("the password can be shown and hidden again", async () => {
+  renderLogin();
+  await screen.findByRole("heading", { name: "Sign in" });
+
+  const password = screen.getByLabelText("Password");
+  expect(password).toHaveAttribute("type", "password");
+
+  await userEvent.click(screen.getByRole("button", { name: "Show password" }));
+  expect(password).toHaveAttribute("type", "text");
+
+  await userEvent.click(screen.getByRole("button", { name: "Hide password" }));
+  expect(password).toHaveAttribute("type", "password");
+});

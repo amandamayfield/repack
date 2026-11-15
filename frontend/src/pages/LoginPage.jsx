@@ -23,6 +23,7 @@ export default function LoginPage() {
   const [mode, setMode] = useState("login"); // "login" | "register"
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
   const [pending, setPending] = useState(false);
 
@@ -77,16 +78,28 @@ export default function LoginPage() {
         />
 
         <label htmlFor="password">Password</label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          autoComplete={isLogin ? "current-password" : "new-password"}
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          disabled={pending}
-        />
+        <div className="password-field">
+          <input
+            id="password"
+            name="password"
+            type={showPassword ? "text" : "password"}
+            autoComplete={isLogin ? "current-password" : "new-password"}
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={pending}
+          />
+          <button
+            type="button"
+            className="password-field__toggle"
+            aria-controls="password"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            onClick={() => setShowPassword((shown) => !shown)}
+            disabled={pending}
+          >
+            {showPassword ? "Hide" : "Show"}
+          </button>
+        </div>
 
         <button type="submit" disabled={pending}>
           {pending
