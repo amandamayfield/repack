@@ -41,6 +41,10 @@ class CategoryViewSet(OwnedModelViewSet):
 	queryset = Category.objects.all()
 	serializer_class = CategorySerializer
 
+	def perform_create(self, serializer):
+		# New categories go last, so the UI (which sends no order) lists them as created.
+		serializer.save(user=self.request.user, order=next_order(self.get_queryset()))
+
 
 class SavedListViewSet(OwnedModelViewSet):
 	queryset = SavedList.objects.all()

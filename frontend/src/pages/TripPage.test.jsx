@@ -119,7 +119,7 @@ test("a failed toggle reverts the checkbox and shows an error", async () => {
   await userEvent.click(socks);
 
   expect(await screen.findByRole("alert")).toHaveTextContent(
-    "Could not update that item",
+    "Couldn't update that item",
   );
   // Reverted back to unchecked.
   await waitFor(() =>
@@ -159,7 +159,6 @@ test("importing a saved list posts to /import-list/ with the chosen id", async (
 });
 
 test("choosing a list that was already imported shows a popup and doesn't re-import", async () => {
-  const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
   baseMock({ trip: { ...TRIP, imported_lists: [99] } });
   renderTrip();
   await screen.findByRole("progressbar", { name: "Yosemite packing progress" });
@@ -177,9 +176,14 @@ test("choosing a list that was already imported shows a popup and doesn't re-imp
     within(importForm).getByRole("button", { name: "Import" }),
   );
 
-  expect(alert).toHaveBeenCalledWith(
+  const dialog = await screen.findByRole("dialog", {
+    name: "Already imported",
+  });
+  expect(dialog).toHaveTextContent(
     '"Camping" has already been imported into this trip.',
   );
+  await userEvent.click(within(dialog).getByRole("button", { name: "OK" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(api).not.toHaveBeenCalledWith(
     "/trips/5/import-list/",
     expect.anything(),
@@ -187,7 +191,6 @@ test("choosing a list that was already imported shows a popup and doesn't re-imp
 });
 
 test("a 409 from the server (imported elsewhere) also shows the popup", async () => {
-  const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
   baseMock({
     handler: (path, opts) =>
       path === "/trips/5/import-list/" && opts?.method === "POST"
@@ -210,12 +213,13 @@ test("a 409 from the server (imported elsewhere) also shows the popup", async ()
     within(importForm).getByRole("button", { name: "Import" }),
   );
 
-  await waitFor(() =>
-    expect(alert).toHaveBeenCalledWith(
-      '"Beach" has already been imported into this trip.',
-    ),
+  const dialog = await screen.findByRole("dialog", {
+    name: "Already imported",
+  });
+  expect(dialog).toHaveTextContent(
+    '"Beach" has already been imported into this trip.',
   );
-  expect(screen.queryByText(/Could not import/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/Couldn't import/)).not.toBeInTheDocument();
 });
 
 test("adding an ad-hoc item can set its category", async () => {
@@ -248,4 +252,108 @@ test("adding an ad-hoc item can set its category", async () => {
       body: { trip: 5, name: "Hat", quantity: null, category: 10 },
     }),
   );
+});
+
+test("links back to all trips", async () => {
+  baseMock();
+  renderTrip();
+  expect(
+    await screen.findByRole("link", { name: "← All trips" }),
+  ).toHaveAttribute("href", "/trips");
+});
+
+test("editing the trip PATCHes its name and dates", async () => {
+  baseMock();
+  renderTrip();
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Edit trip" }),
+  );
+
+  const name = screen.getByLabelText("Trip name");
+  await userEvent.clear(name);
+  await userEvent.type(name, "Yosemite Valley");
+  await userEvent.type(
+    screen.getByLabelText("Start date (optional)"),
+    "2026-07-01",
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Save trip" }));
+
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith("/trips/5/", {
+      method: "PATCH",
+      body: {
+        name: "Yosemite Valley",
+        start_date: "2026-07-01",
+        end_date: null,
+      },
+    }),
+  );
+});
+
+test("deleting the trip asks first, then returns to the trips list", async () => {
+  baseMock();
+  render(
+    <AuthProvider>
+      <MemoryRouter initialEntries={["/trips/5"]}>
+        <Routes>
+          <Route path="/trips/:id" element={<TripPage />} />
+          <Route path="/trips" element={<h1>All trips</h1>} />
+        </Routes>
+      </MemoryRouter>
+    </AuthProvider>,
+  );
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Delete trip" }),
+  );
+  const dialog = await screen.findByRole("dialog", {
+    name: 'Delete "Yosemite"?',
+  });
+  await userEvent.click(
+    within(dialog).getByRole("button", { name: "Delete trip" }),
+  );
+
+  expect(
+    await screen.findByRole("heading", { name: "All trips" }),
+  ).toBeInTheDocument();
+  expect(api).toHaveBeenCalledWith("/trips/5/", { method: "DELETE" });
+});
+
+test("trip items can be edited and deleted", async () => {
+  baseMock();
+  renderTrip();
+  await screen.findByRole("progressbar", { name: "Yosemite packing progress" });
+
+  await userEvent.click(screen.getByRole("button", { name: "Edit Tent" }));
+  await userEvent.type(
+    screen.getByLabelText("Quantity (optional)", { selector: "#edit-2-qty" }),
+    "2",
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith("/trip-items/2/", {
+      method: "PATCH",
+      body: { name: "Tent", quantity: 2, category: 20 },
+    }),
+  );
+
+  await userEvent.click(screen.getByRole("button", { name: "Delete Snacks" }));
+  const dialog = await screen.findByRole("dialog", {
+    name: 'Delete "Snacks"?',
+  });
+  await userEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith("/trip-items/3/", { method: "DELETE" }),
+  );
+});
+
+test("a fully packed trip shows the All packed stamp", async () => {
+  baseMock({
+    trip: { ...TRIP, items: TRIP.items.map((i) => ({ ...i, packed: true })) },
+  });
+  renderTrip();
+  const ring = await screen.findByRole("progressbar", {
+    name: "Yosemite packing progress",
+  });
+  expect(ring).toHaveClass("progress-ring--complete");
+  expect(ring).toHaveTextContent("All packed");
 });

@@ -7,6 +7,7 @@ import TripsPage from "./pages/TripsPage";
 import TripPage from "./pages/TripPage";
 import ListsPage from "./pages/ListsPage";
 import ListEditorPage from "./pages/ListEditorPage";
+import CategoriesPage from "./pages/CategoriesPage";
 
 export default function App() {
   const { loading } = useAuth();
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/trips/:id" element={<TripPage />} />
           <Route path="/lists" element={<ListsPage />} />
           <Route path="/lists/:id" element={<ListEditorPage />} />
+          <Route path="/categories" element={<CategoriesPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/trips" replace />} />

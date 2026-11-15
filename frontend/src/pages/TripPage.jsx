@@ -1,11 +1,14 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
+import { useDialog } from "../hooks/useDialog";
 import { useFetch } from "../hooks/useFetch";
 import { computeProgress, groupByCategory } from "../lib/grouping";
-import ProgressBar from "../components/ProgressBar";
+import { formatDateRange } from "../lib/dates";
+import ProgressRing from "../components/ProgressRing";
 import ItemRow from "../components/ItemRow";
 import ItemForm from "../components/ItemForm";
+import TripForm from "../components/TripForm";
 
 export default function TripPage() {
   const { id } = useParams();
@@ -13,7 +16,7 @@ export default function TripPage() {
   const { data: categories } = useFetch("/categories/");
 
   if (loading) return <p role="status">Loading trip…</p>;
-  if (error) return <p role="alert">Could not load this trip.</p>;
+  if (error) return <p role="alert">Couldn't load this trip.</p>;
   if (!trip) return null;
 
   return (
@@ -22,6 +25,11 @@ export default function TripPage() {
 }
 
 function TripDetail({ trip, categories, reload }) {
+  const navigate = useNavigate();
+  const { confirm, alert, dialog } = useDialog();
+  const [editingTrip, setEditingTrip] = useState(false);
+  const [actionError, setActionError] = useState(null);
+
   // Local optimistic mirror of the fetched items. Sync during render (not in an
   // effect) whenever a fresh trip arrives — the documented pattern for adjusting
   // state when a prop changes, and it keeps toggles instant without a refetch.
@@ -32,14 +40,13 @@ function TripDetail({ trip, categories, reload }) {
     setItems(trip.items ?? []);
   }
 
-  const [toggleError, setToggleError] = useState(null);
   const overall = computeProgress(items);
   const groups = groupByCategory(items, categories);
-  const complete = overall.total > 0 && overall.packed === overall.total;
+  const dates = formatDateRange(trip.start_date, trip.end_date);
 
   async function handleToggle(item, packed) {
-    setToggleError(null);
-    // Optimistic flip so the hero recomputes immediately.
+    setActionError(null);
+    // Optimistic flip so the ring recomputes immediately.
     setItems((prev) =>
       prev.map((it) => (it.id === item.id ? { ...it, packed } : it)),
     );
@@ -53,35 +60,106 @@ function TripDetail({ trip, categories, reload }) {
       setItems((prev) =>
         prev.map((it) => (it.id === item.id ? { ...it, packed: !packed } : it)),
       );
-      setToggleError("Could not update that item. Please try again.");
+      setActionError("Couldn't update that item. Try again.");
+    }
+  }
+
+  async function handleDeleteItem(item) {
+    const ok = await confirm({
+      title: `Delete "${item.name}"?`,
+      message: "It's removed from this trip only. Your saved lists keep it.",
+    });
+    if (!ok) return;
+    setActionError(null);
+    try {
+      await api(`/trip-items/${item.id}/`, { method: "DELETE" });
+      reload();
+    } catch {
+      setActionError(`Couldn't delete "${item.name}". Try again.`);
+    }
+  }
+
+  async function handleDeleteTrip() {
+    const ok = await confirm({
+      title: `Delete "${trip.name}"?`,
+      message:
+        "This deletes the trip and its packing list. Saved lists aren't affected.",
+      confirmLabel: "Delete trip",
+    });
+    if (!ok) return;
+    try {
+      await api(`/trips/${trip.id}/`, { method: "DELETE" });
+      navigate("/trips");
+    } catch {
+      setActionError("Couldn't delete this trip. Try again.");
     }
   }
 
   return (
     <section className="page trip-page">
-      <h1>{trip.name}</h1>
+      {dialog}
+      <p className="back-link">
+        <Link to="/trips">← All trips</Link>
+      </p>
 
-      <div className="trip-hero">
-        <ProgressBar
-          value={overall.packed}
-          max={overall.total}
-          label={`${trip.name} packing progress`}
-        />
-        <p className="trip-hero__count">
-          {overall.packed} / {overall.total} packed
-          {complete && " — all packed! 🎉"}
-        </p>
-      </div>
+      {editingTrip ? (
+        <section className="panel" aria-label="Edit trip">
+          <h1 className="visually-hidden">{trip.name}</h1>
+          <TripForm
+            initial={trip}
+            idPrefix="edit-trip"
+            submitLabel="Save trip"
+            onSubmit={async (body) => {
+              await api(`/trips/${trip.id}/`, { method: "PATCH", body });
+              setEditingTrip(false);
+              reload();
+            }}
+            onCancel={() => setEditingTrip(false)}
+          />
+        </section>
+      ) : (
+        <header className="trip-hero">
+          <ProgressRing
+            value={overall.packed}
+            max={overall.total}
+            label={`${trip.name} packing progress`}
+          />
+          <div className="trip-hero__text">
+            <h1>{trip.name}</h1>
+            {dates && <p className="trip-hero__dates">{dates}</p>}
+            <p className="trip-hero__count">
+              {overall.packed} / {overall.total} packed
+            </p>
+            <div className="trip-hero__actions">
+              <button
+                type="button"
+                className="button button--ghost button--small"
+                onClick={() => setEditingTrip(true)}
+              >
+                Edit trip
+              </button>
+              <button
+                type="button"
+                className="button button--ghost button--small button--quiet-danger"
+                onClick={handleDeleteTrip}
+              >
+                Delete trip
+              </button>
+            </div>
+          </div>
+        </header>
+      )}
 
-      {toggleError && (
+      {actionError && (
         <p role="alert" className="form-error">
-          {toggleError}
+          {actionError}
         </p>
       )}
 
       {items.length === 0 ? (
         <p className="empty-state">
-          No items yet. Add one below, or import a saved list.
+          Nothing to pack yet. Add an item below, or import one of your saved
+          lists.
         </p>
       ) : (
         groups.map((group) => {
@@ -96,7 +174,20 @@ function TripDetail({ trip, categories, reload }) {
               </h2>
               <ul className="item-list">
                 {group.items.map((item) => (
-                  <ItemRow key={item.id} item={item} onToggle={handleToggle} />
+                  <ItemRow
+                    key={item.id}
+                    item={item}
+                    categories={categories}
+                    onToggle={handleToggle}
+                    onSave={async (body) => {
+                      await api(`/trip-items/${item.id}/`, {
+                        method: "PATCH",
+                        body,
+                      });
+                      reload();
+                    }}
+                    onDelete={() => handleDeleteItem(item)}
+                  />
                 ))}
               </ul>
             </section>
@@ -104,31 +195,34 @@ function TripDetail({ trip, categories, reload }) {
         })
       )}
 
-      <section className="add-item-form">
-        <h2>Add an item</h2>
-        <ItemForm
-          categories={categories}
-          onSubmit={async (body) => {
-            await api("/trip-items/", {
-              method: "POST",
-              body: { trip: trip.id, ...body },
-            });
-            reload();
-          }}
-          submitLabel="Add item"
-          idPrefix="trip-add"
+      <div className="trip-page__tools">
+        <section className="panel add-item-form">
+          <h2>Add an item</h2>
+          <ItemForm
+            categories={categories}
+            onSubmit={async (body) => {
+              await api("/trip-items/", {
+                method: "POST",
+                body: { trip: trip.id, ...body },
+              });
+              reload();
+            }}
+            submitLabel="Add item"
+            idPrefix="trip-add"
+          />
+        </section>
+        <ImportListForm
+          tripId={trip.id}
+          importedListIds={trip.imported_lists ?? []}
+          reload={reload}
+          alert={alert}
         />
-      </section>
-      <ImportListForm
-        tripId={trip.id}
-        importedListIds={trip.imported_lists ?? []}
-        reload={reload}
-      />
+      </div>
     </section>
   );
 }
 
-function ImportListForm({ tripId, importedListIds, reload }) {
+function ImportListForm({ tripId, importedListIds, reload, alert }) {
   const { data: lists } = useFetch("/saved-lists/");
   const [selected, setSelected] = useState("");
   const [pending, setPending] = useState(false);
@@ -136,7 +230,10 @@ function ImportListForm({ tripId, importedListIds, reload }) {
 
   function alertAlreadyImported(listId) {
     const name = lists?.find((l) => l.id === listId)?.name ?? "That list";
-    window.alert(`"${name}" has already been imported into this trip.`);
+    return alert({
+      title: "Already imported",
+      message: `"${name}" has already been imported into this trip.`,
+    });
   }
 
   async function handleImport(event) {
@@ -164,7 +261,7 @@ function ImportListForm({ tripId, importedListIds, reload }) {
         setSelected("");
         reload();
       } else {
-        setError("Could not import that list. Please try again.");
+        setError("Couldn't import that list. Try again.");
       }
     } finally {
       setPending(false);
@@ -172,25 +269,33 @@ function ImportListForm({ tripId, importedListIds, reload }) {
   }
 
   return (
-    <form onSubmit={handleImport} className="import-form">
+    <form onSubmit={handleImport} className="panel form import-form">
       <h2>Import a saved list</h2>
-      <label htmlFor="import-list">Saved list</label>
-      <select
-        id="import-list"
-        value={selected}
-        onChange={(e) => setSelected(e.target.value)}
-        disabled={pending}
-      >
-        <option value="">Choose a list…</option>
-        {(lists ?? []).map((list) => (
-          <option key={list.id} value={list.id}>
-            {list.name}
-          </option>
-        ))}
-      </select>
-      <button type="submit" disabled={pending || selected === ""}>
-        {pending ? "Importing…" : "Import"}
-      </button>
+      <div className="field field--grow">
+        <label htmlFor="import-list">Saved list</label>
+        <select
+          id="import-list"
+          value={selected}
+          onChange={(e) => setSelected(e.target.value)}
+          disabled={pending}
+        >
+          <option value="">Choose a list…</option>
+          {(lists ?? []).map((list) => (
+            <option key={list.id} value={list.id}>
+              {list.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="form__actions">
+        <button
+          type="submit"
+          className="button"
+          disabled={pending || selected === ""}
+        >
+          {pending ? "Importing…" : "Import"}
+        </button>
+      </div>
       {error && (
         <p role="alert" className="form-error">
           {error}

@@ -1,119 +1,60 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { useFetch } from "../hooks/useFetch";
+import { formatDateRange } from "../lib/dates";
 import ProgressBar from "../components/ProgressBar";
+import TripForm from "../components/TripForm";
 
 export default function TripsPage() {
   const { data: trips, loading, error, reload } = useFetch("/trips/");
-  const [name, setName] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [pending, setPending] = useState(false);
-  const [formError, setFormError] = useState(null);
-
-  async function handleCreate(event) {
-    event.preventDefault();
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    setPending(true);
-    setFormError(null);
-    try {
-      const body = { name: trimmed };
-      if (startDate !== "") body.start_date = startDate;
-      if (endDate !== "") body.end_date = endDate;
-      await api("/trips/", { method: "POST", body });
-      setName("");
-      setStartDate("");
-      setEndDate("");
-      reload();
-    } catch {
-      setFormError("Could not create the trip. Please try again.");
-    } finally {
-      setPending(false);
-    }
-  }
 
   return (
     <section className="page trips-page">
-      <h1>Trips</h1>
+      <header className="page-header">
+        <h1>Trips</h1>
+      </header>
 
-      <form onSubmit={handleCreate} className="create-form">
-        <label htmlFor="trip-name">Trip name</label>
-        <input
-          id="trip-name"
-          name="name"
-          type="text"
-          required
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          disabled={pending}
+      <section className="panel">
+        <h2>New trip</h2>
+        <TripForm
+          submitLabel="Add trip"
+          onSubmit={async (body) => {
+            await api("/trips/", { method: "POST", body });
+            reload();
+          }}
         />
-
-        <label htmlFor="trip-start">Start date (optional)</label>
-        <input
-          id="trip-start"
-          name="start_date"
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          disabled={pending}
-        />
-
-        <label htmlFor="trip-end">End date (optional)</label>
-        <input
-          id="trip-end"
-          name="end_date"
-          type="date"
-          min={startDate || undefined}
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          disabled={pending}
-        />
-
-        <button type="submit" disabled={pending || name.trim() === ""}>
-          {pending ? "Creating…" : "Add trip"}
-        </button>
-        {formError && (
-          <p role="alert" className="form-error">
-            {formError}
-          </p>
-        )}
-      </form>
+      </section>
 
       {loading && <p role="status">Loading trips…</p>}
-      {error && !loading && <p role="alert">Could not load your trips.</p>}
+      {error && !loading && <p role="alert">Couldn't load your trips.</p>}
 
       {!loading && !error && trips?.length === 0 && (
         <p className="empty-state">
-          No trips yet. Create one above to get started.
+          No trips yet. Name your next one above to start a packing list.
         </p>
       )}
 
       {!loading && !error && trips?.length > 0 && (
         <ul className="trip-list">
-          {trips.map((trip) => (
-            <li key={trip.id} className="trip-card">
-              <Link to={`/trips/${trip.id}`} className="trip-card__link">
-                <h2 className="trip-card__name">{trip.name}</h2>
-                {(trip.start_date || trip.end_date) && (
-                  <p className="trip-card__dates">
-                    {[trip.start_date, trip.end_date]
-                      .filter(Boolean)
-                      .join(" – ")}
+          {trips.map((trip) => {
+            const dates = formatDateRange(trip.start_date, trip.end_date);
+            return (
+              <li key={trip.id} className="trip-card">
+                <Link to={`/trips/${trip.id}`} className="trip-card__link">
+                  <h2 className="trip-card__name">{trip.name}</h2>
+                  {dates && <p className="trip-card__dates">{dates}</p>}
+                  <ProgressBar
+                    value={trip.packed_count}
+                    max={trip.total_count}
+                    label={`${trip.name} packing progress`}
+                  />
+                  <p className="trip-card__count">
+                    {trip.packed_count} / {trip.total_count} packed
                   </p>
-                )}
-                <ProgressBar
-                  value={trip.packed_count}
-                  max={trip.total_count}
-                  label={`${trip.name} packing progress`}
-                />
-                <p className="trip-card__count">
-                  {trip.packed_count} / {trip.total_count} packed
-                </p>
-              </Link>
-            </li>
-          ))}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

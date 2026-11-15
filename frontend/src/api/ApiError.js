@@ -14,3 +14,13 @@ export class ApiError extends Error {
     return Object.values(this.body).flat().map(String);
   }
 }
+
+// What a form should show for a failed save: the server's validation messages
+// for a 400 (e.g. "End date can't be before the start date."), else `fallback`.
+export function errorMessage(err, fallback) {
+  if (err?.status === 400) {
+    const messages = err.messages?.() ?? [];
+    if (messages.length > 0) return messages.join(" ");
+  }
+  return fallback;
+}

@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
+import { errorMessage } from "../api/ApiError";
 
 // Shared add/edit form for an item on a saved list or a trip. The parent adds
 // the parent id (saved_list / trip) and decides POST vs PATCH; this form only
@@ -40,59 +42,79 @@ export default function ItemForm({
         setQuantity("");
         setCategory("");
       }
-    } catch {
+    } catch (err) {
       // A 401 is handled globally (redirect to login); anything else is shown here.
-      setError("Could not save the item. Please try again.");
+      setError(errorMessage(err, "Couldn't save the item. Try again."));
     } finally {
       setPending(false);
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="item-form">
-      <label htmlFor={`${idPrefix}-name`}>Item name</label>
-      <input
-        id={`${idPrefix}-name`}
-        type="text"
-        required
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        disabled={pending}
-      />
+    <form onSubmit={handleSubmit} className="form form--item">
+      <div className="field field--grow">
+        <label htmlFor={`${idPrefix}-name`}>Item name</label>
+        <input
+          id={`${idPrefix}-name`}
+          type="text"
+          required
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={pending}
+        />
+      </div>
 
-      <label htmlFor={`${idPrefix}-qty`}>Quantity (optional)</label>
-      <input
-        id={`${idPrefix}-qty`}
-        type="number"
-        min="1"
-        value={quantity}
-        onChange={(e) => setQuantity(e.target.value)}
-        disabled={pending}
-      />
+      <div className="field field--narrow">
+        <label htmlFor={`${idPrefix}-qty`}>Quantity (optional)</label>
+        <input
+          id={`${idPrefix}-qty`}
+          type="number"
+          min="1"
+          value={quantity}
+          onChange={(e) => setQuantity(e.target.value)}
+          disabled={pending}
+        />
+      </div>
 
-      <label htmlFor={`${idPrefix}-category`}>Category (optional)</label>
-      <select
-        id={`${idPrefix}-category`}
-        value={category}
-        onChange={(e) => setCategory(e.target.value)}
-        disabled={pending}
-      >
-        <option value="">Uncategorized</option>
-        {(categories ?? []).map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
-      </select>
+      <div className="field">
+        <label htmlFor={`${idPrefix}-category`}>Category (optional)</label>
+        <select
+          id={`${idPrefix}-category`}
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          disabled={pending}
+        >
+          <option value="">Uncategorized</option>
+          {(categories ?? []).map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <Link to="/categories" className="field__hint">
+          {categories?.length ? "Manage categories" : "Create categories"}
+        </Link>
+      </div>
 
-      <button type="submit" disabled={pending || name.trim() === ""}>
-        {pending ? "Saving…" : submitLabel}
-      </button>
-      {onCancel && (
-        <button type="button" onClick={onCancel} disabled={pending}>
-          Cancel
+      <div className="form__actions">
+        <button
+          type="submit"
+          className="button"
+          disabled={pending || name.trim() === ""}
+        >
+          {pending ? "Saving…" : submitLabel}
         </button>
-      )}
+        {onCancel && (
+          <button
+            type="button"
+            className="button button--ghost"
+            onClick={onCancel}
+            disabled={pending}
+          >
+            Cancel
+          </button>
+        )}
+      </div>
       {error && (
         <p role="alert" className="form-error">
           {error}

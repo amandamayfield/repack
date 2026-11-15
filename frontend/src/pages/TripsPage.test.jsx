@@ -50,7 +50,7 @@ test("renders a card per trip with server-provided progress counts", async () =>
   });
   expect(bar).toHaveAttribute("aria-valuenow", "1");
   expect(screen.getByText("1 / 2 packed")).toBeInTheDocument();
-  expect(screen.getByText("2026-07-01 – 2026-07-03")).toBeInTheDocument();
+  expect(screen.getByText(/Jul 1\s*–\s*3, 2026/)).toBeInTheDocument();
   expect(screen.getByRole("link", { name: /Beach/ })).toHaveAttribute(
     "href",
     "/trips/7",

@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
+import { useDialog } from "../hooks/useDialog";
 import { useFetch } from "../hooks/useFetch";
 import { groupByCategory } from "../lib/grouping";
 import ItemForm from "../components/ItemForm";
+import ItemRow from "../components/ItemRow";
+import ListForm from "../components/ListForm";
 
 export default function ListEditorPage() {
   const { id } = useParams();
@@ -14,12 +17,15 @@ export default function ListEditorPage() {
     reload,
   } = useFetch(`/saved-lists/${id}/`);
   const { data: categories } = useFetch("/categories/");
+  const { confirm, dialog } = useDialog();
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [actionError, setActionError] = useState(null);
 
   if (loading) return <p role="status">Loading list…</p>;
-  if (error) return <p role="alert">Could not load this list.</p>;
+  if (error) return <p role="alert">Couldn't load this list.</p>;
   if (!list) return null;
 
-  // Errors propagate to ItemForm, which shows them.
+  // Errors propagate to ItemForm / ListForm, which show them.
   async function handleAdd(body) {
     await api("/saved-list-items/", {
       method: "POST",
@@ -28,31 +34,91 @@ export default function ListEditorPage() {
     reload();
   }
 
+  async function handleDeleteItem(item) {
+    const ok = await confirm({
+      title: `Delete "${item.name}"?`,
+      message: "Trips you've already packed from this list keep their copy.",
+    });
+    if (!ok) return;
+    setActionError(null);
+    try {
+      await api(`/saved-list-items/${item.id}/`, { method: "DELETE" });
+      reload();
+    } catch {
+      setActionError(`Couldn't delete "${item.name}". Try again.`);
+    }
+  }
+
   const groups = groupByCategory(list.items, categories ?? []);
 
   return (
     <section className="page list-editor">
-      <p>
+      {dialog}
+      <p className="back-link">
         <Link to="/lists">← All lists</Link>
       </p>
-      <h1>{list.name}</h1>
-      {list.description && (
-        <p className="list-editor__description">{list.description}</p>
+
+      {editingDetails ? (
+        <section className="panel" aria-label="Edit list details">
+          <h1 className="visually-hidden">{list.name}</h1>
+          <ListForm
+            initial={list}
+            idPrefix="edit-list"
+            submitLabel="Save list"
+            onSubmit={async (body) => {
+              await api(`/saved-lists/${list.id}/`, { method: "PATCH", body });
+              setEditingDetails(false);
+              reload();
+            }}
+            onCancel={() => setEditingDetails(false)}
+          />
+        </section>
+      ) : (
+        <header className="page-header">
+          <div>
+            <h1>{list.name}</h1>
+            {list.description && (
+              <p className="page-header__description">{list.description}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            className="button button--ghost button--small"
+            onClick={() => setEditingDetails(true)}
+          >
+            Edit details
+          </button>
+        </header>
+      )}
+
+      {actionError && (
+        <p role="alert" className="form-error">
+          {actionError}
+        </p>
       )}
 
       {list.items.length === 0 ? (
-        <p className="empty-state">No items yet. Add one below.</p>
+        <p className="empty-state">
+          This list is empty. Add the things you always bring below.
+        </p>
       ) : (
         groups.map((group) => (
           <section key={group.name} className="category-group">
             <h2 className="category-group__header">{group.name}</h2>
             <ul className="item-list">
               {group.items.map((item) => (
-                <EditableItemRow
+                <ItemRow
                   key={item.id}
                   item={item}
                   categories={categories ?? []}
-                  reload={reload}
+                  onSave={async (body) => {
+                    await api(`/saved-list-items/${item.id}/`, {
+                      method: "PATCH",
+                      body,
+                    });
+                    reload();
+                  }}
+                  onDelete={() => handleDeleteItem(item)}
                 />
               ))}
             </ul>
@@ -60,68 +126,15 @@ export default function ListEditorPage() {
         ))
       )}
 
-      <h2>Add an item</h2>
-      <ItemForm
-        categories={categories ?? []}
-        onSubmit={handleAdd}
-        submitLabel="Add item"
-        idPrefix="add"
-      />
-    </section>
-  );
-}
-
-function EditableItemRow({ item, categories, reload }) {
-  const [editing, setEditing] = useState(false);
-  const [error, setError] = useState(null);
-  const text = item.quantity ? `${item.name} (${item.quantity})` : item.name;
-
-  async function handleEdit(body) {
-    await api(`/saved-list-items/${item.id}/`, { method: "PATCH", body });
-    setEditing(false);
-    reload();
-  }
-
-  async function handleDelete() {
-    if (!window.confirm(`Delete "${item.name}"?`)) return;
-    setError(null);
-    try {
-      await api(`/saved-list-items/${item.id}/`, { method: "DELETE" });
-      reload();
-    } catch {
-      setError("Could not delete the item. Please try again.");
-    }
-  }
-
-  if (editing) {
-    return (
-      <li className="item-row item-row--editing">
+      <section className="panel">
+        <h2>Add an item</h2>
         <ItemForm
-          initial={item}
-          categories={categories}
-          onSubmit={handleEdit}
-          onCancel={() => setEditing(false)}
-          submitLabel="Save"
-          idPrefix={`edit-${item.id}`}
+          categories={categories ?? []}
+          onSubmit={handleAdd}
+          submitLabel="Add item"
+          idPrefix="add"
         />
-      </li>
-    );
-  }
-
-  return (
-    <li className="item-row">
-      <span>{text}</span>
-      <button type="button" onClick={() => setEditing(true)}>
-        Edit
-      </button>
-      <button type="button" onClick={handleDelete}>
-        Delete
-      </button>
-      {error && (
-        <p role="alert" className="form-error">
-          {error}
-        </p>
-      )}
-    </li>
+      </section>
+    </section>
   );
 }

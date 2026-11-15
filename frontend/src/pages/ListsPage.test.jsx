@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -75,7 +75,6 @@ test("creating a list posts the name and refetches", async () => {
 });
 
 test("deleting a list (confirmed) issues a DELETE", async () => {
-  vi.spyOn(window, "confirm").mockReturnValue(true);
   api.mockImplementation((path, opts) => {
     if (path === "/auth/me/")
       return Promise.resolve({ id: 1, username: "amanda" });
@@ -89,9 +88,34 @@ test("deleting a list (confirmed) issues a DELETE", async () => {
   renderPage();
   await screen.findByRole("link", { name: "Camping" });
 
-  await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+  await userEvent.click(screen.getByRole("button", { name: "Delete Camping" }));
+  const dialog = await screen.findByRole("dialog", {
+    name: 'Delete "Camping"?',
+  });
+  await userEvent.click(
+    within(dialog).getByRole("button", { name: "Delete list" }),
+  );
 
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith("/saved-lists/3/", { method: "DELETE" }),
   );
+});
+
+test("cancelling the delete dialog keeps the list", async () => {
+  api.mockImplementation((path) => {
+    if (path === "/auth/me/")
+      return Promise.resolve({ id: 1, username: "amanda" });
+    if (path === "/saved-lists/")
+      return Promise.resolve([{ id: 3, name: "Camping" }]);
+    return Promise.resolve(null);
+  });
+
+  renderPage();
+  await screen.findByRole("link", { name: "Camping" });
+  await userEvent.click(screen.getByRole("button", { name: "Delete Camping" }));
+  const dialog = await screen.findByRole("dialog");
+  await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(api).not.toHaveBeenCalledWith("/saved-lists/3/", { method: "DELETE" });
 });

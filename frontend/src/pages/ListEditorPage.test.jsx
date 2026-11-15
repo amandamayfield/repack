@@ -118,7 +118,7 @@ test("editing an item PATCHes its fields", async () => {
   // Open the edit form on the "Shirts" row.
   const shirtsRow = screen.getByText("Shirts (4)").closest("li");
   await userEvent.click(
-    within(shirtsRow).getByRole("button", { name: "Edit" }),
+    within(shirtsRow).getByRole("button", { name: "Edit Shirts" }),
   );
 
   const qty = screen.getByLabelText("Quantity (optional)", {
@@ -137,7 +137,6 @@ test("editing an item PATCHes its fields", async () => {
 });
 
 test("deleting an item (confirmed) issues a DELETE", async () => {
-  vi.spyOn(window, "confirm").mockReturnValue(true);
   baseMock({
     handler: (path, opts) =>
       path === "/saved-list-items/2/" && opts?.method === "DELETE"
@@ -149,12 +148,40 @@ test("deleting an item (confirmed) issues a DELETE", async () => {
 
   const sunscreenRow = screen.getByText("Sunscreen").closest("li");
   await userEvent.click(
-    within(sunscreenRow).getByRole("button", { name: "Delete" }),
+    within(sunscreenRow).getByRole("button", { name: "Delete Sunscreen" }),
   );
+  const dialog = await screen.findByRole("dialog", {
+    name: 'Delete "Sunscreen"?',
+  });
+  await userEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
 
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith("/saved-list-items/2/", {
       method: "DELETE",
+    }),
+  );
+});
+
+test("editing the list's details PATCHes name and description", async () => {
+  baseMock();
+  renderEditor();
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Edit details" }),
+  );
+
+  const name = screen.getByLabelText("List name");
+  await userEvent.clear(name);
+  await userEvent.type(name, "Backpacking");
+  await userEvent.type(
+    screen.getByLabelText("Description (optional)"),
+    "Multi-day",
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Save list" }));
+
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith("/saved-lists/3/", {
+      method: "PATCH",
+      body: { name: "Backpacking", description: "Multi-day" },
     }),
   );
 });
