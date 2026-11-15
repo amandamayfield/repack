@@ -52,3 +52,17 @@ def test_trip_item_rejects_others_category(auth_client):
 	assert r.status_code == 400
 	r = c.patch(f"/api/trip-items/{item['id']}/", {"category": adam_cat["id"]}, format="json")
 	assert r.status_code == 400
+
+
+@pytest.mark.django_db
+def test_trip_end_date_cannot_precede_start(auth_client):
+	c, _ = auth_client
+	r = c.post("/api/trips/", {"name": "Beach", "start_date": "2026-07-10", "end_date": "2026-07-01"}, format="json")
+	assert r.status_code == 400
+	assert "end_date" in r.data
+	# A PATCH that sends only one date is checked against the stored other one.
+	trip = c.post("/api/trips/", {"name": "Beach", "start_date": "2026-07-10"}, format="json").data
+	r = c.patch(f"/api/trips/{trip['id']}/", {"end_date": "2026-07-01"}, format="json")
+	assert r.status_code == 400
+	r = c.patch(f"/api/trips/{trip['id']}/", {"end_date": "2026-07-12"}, format="json")
+	assert r.status_code == 200

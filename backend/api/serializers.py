@@ -65,3 +65,11 @@ class TripDetailSerializer(serializers.ModelSerializer):
 	class Meta:
 		model = Trip
 		fields = ["id", "name", "days", "start_date", "end_date", "items", "created_at", "updated_at"]
+
+	def validate(self, attrs):
+		# On PATCH only one date may be sent; compare against the stored other one.
+		start = attrs.get("start_date", getattr(self.instance, "start_date", None))
+		end = attrs.get("end_date", getattr(self.instance, "end_date", None))
+		if start and end and end < start:
+			raise serializers.ValidationError({"end_date": "End date can't be before the start date."})
+		return attrs

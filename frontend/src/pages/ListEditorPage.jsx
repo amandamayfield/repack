@@ -20,7 +20,7 @@ export default function ListEditorPage() {
     try {
       await api("/saved-list-items/", {
         method: "POST",
-        body: { saved_list: list.id, order: list.items.length, ...body },
+        body: { saved_list: list.id, ...body },
       });
       reload();
     } catch (err) {

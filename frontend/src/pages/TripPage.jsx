@@ -114,7 +114,6 @@ function TripDetail({ trip, categories, reload, handle403 }) {
 
       <AddItemForm
         tripId={trip.id}
-        nextOrder={items.length}
         reload={reload}
         handle403={handle403}
       />
@@ -123,7 +122,7 @@ function TripDetail({ trip, categories, reload, handle403 }) {
   );
 }
 
-function AddItemForm({ tripId, nextOrder, reload, handle403 }) {
+function AddItemForm({ tripId, reload, handle403 }) {
   const [name, setName] = useState("");
   const [quantity, setQuantity] = useState("");
   const [pending, setPending] = useState(false);
@@ -136,7 +135,7 @@ function AddItemForm({ tripId, nextOrder, reload, handle403 }) {
     setPending(true);
     setError(null);
     try {
-      const body = { trip: tripId, name: trimmed, order: nextOrder };
+      const body = { trip: tripId, name: trimmed };
       if (quantity !== "") body.quantity = Number(quantity);
       await api("/trip-items/", { method: "POST", body });
       setName("");

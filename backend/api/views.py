@@ -3,7 +3,7 @@ from django.shortcuts import render
 # Create your views here.
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Count, Q
+from django.db.models import Count, Max, Q
 
 from django.db import transaction
 from rest_framework import status
@@ -13,6 +13,12 @@ from rest_framework.response import Response
 from .permissions import IsOwner
 from .models import Category, SavedList, SavedListItem, Trip, TripItem
 from .serializers import CategorySerializer, SavedListSerializer, SavedListItemSerializer, TripListSerializer, TripItemSerializer, TripDetailSerializer
+
+def next_order(siblings):
+	"""The `order` for a new item appended after `siblings` (0 if there are none)."""
+	current_max = siblings.aggregate(m=Max("order"))["m"]
+	return 0 if current_max is None else current_max + 1
+
 
 class OwnedModelViewSet(viewsets.ModelViewSet):
 	"""Base class: scope every query to the current user, and stamp
@@ -43,6 +49,11 @@ class SavedListItemViewSet(viewsets.ModelViewSet):
 	def get_queryset(self):
 	# Items are owned indirectly, through their parent list's user.
 		return SavedListItem.objects.filter(saved_list__user=self.request.user)
+
+	def perform_create(self, serializer):
+		# The server owns ordering on create, so deletes can't cause collisions.
+		saved_list = serializer.validated_data["saved_list"]
+		serializer.save(order=next_order(saved_list.items.all()))
 	
 
 class TripViewSet(OwnedModelViewSet):
@@ -70,9 +81,12 @@ class TripViewSet(OwnedModelViewSet):
 			return Response({"detail": "List not found."}, status=status.HTTP_404_NOT_FOUND)
 			
 		with transaction.atomic():
+			# Append after the trip's existing items instead of reusing the
+			# template's order values, which would collide with them.
+			start = next_order(trip.items.all())
 			TripItem.objects.bulk_create([
-				TripItem(trip=trip, category_id=src.category_id, name=src.name, quantity=src.quantity, order=src.order, packed=False)
-				for src in saved_list.items.all()
+				TripItem(trip=trip, category_id=src.category_id, name=src.name, quantity=src.quantity, order=start + i, packed=False)
+				for i, src in enumerate(saved_list.items.all())
 			])
 		return Response(status=status.HTTP_201_CREATED)
 
@@ -83,3 +97,7 @@ class TripItemViewSet(viewsets.ModelViewSet):
 
 	def get_queryset(self):
 		return TripItem.objects.filter(trip__user=self.request.user)
+
+	def perform_create(self, serializer):
+		trip = serializer.validated_data["trip"]
+		serializer.save(order=next_order(trip.items.all()))

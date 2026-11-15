@@ -63,7 +63,7 @@ test("renders items grouped by category with no packed checkboxes", async () => 
   expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
 });
 
-test("adding an item posts with saved_list + order, then refetches", async () => {
+test("adding an item posts with saved_list (server assigns order), then refetches", async () => {
   baseMock({
     handler: (path, opts) =>
       path === "/saved-list-items/" && opts?.method === "POST"
@@ -87,7 +87,7 @@ test("adding an item posts with saved_list + order, then refetches", async () =>
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith("/saved-list-items/", {
       method: "POST",
-      body: { saved_list: 3, order: 2, name: "Boots", quantity: null, category: 10 },
+      body: { saved_list: 3, name: "Boots", quantity: null, category: 10 },
     }),
   );
 });

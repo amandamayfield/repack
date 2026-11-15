@@ -56,3 +56,14 @@ def test_cannot_import_others_list(auth_client):
 	adam_list = adam.post("/api/saved-lists/", {"name": "Adam"}, format="json").data
 	r = c.post(f"/api/trips/{trip['id']}/import-list/", {"saved_list_id": adam_list["id"]}, format="json")
 	assert r.status_code in (400, 404)
+
+@pytest.mark.django_db
+def test_import_appends_after_existing_trip_items(auth_client):
+	c, _ = auth_client
+	lst = _seed_list(c)
+	trip = c.post("/api/trips/", {"name": "Yosemite"}, format="json").data
+	c.post("/api/trip-items/", {"trip": trip["id"], "name": "Passport"}, format="json")
+	c.post(f"/api/trips/{trip['id']}/import-list/", {"saved_list_id": lst["id"]}, format="json")
+	items = c.get(f"/api/trips/{trip['id']}/").data["items"]
+	assert [i["name"] for i in items] == ["Passport", "Shirts", "Sunscreen"]
+	assert [i["order"] for i in items] == [0, 1, 2]

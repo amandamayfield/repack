@@ -2,6 +2,7 @@ from django.db import models
 
 # Create your models here.
 from django.conf import settings
+from django.core.validators import MinValueValidator
 from django.db import models
 
 class Category(models.Model):
@@ -31,7 +32,7 @@ class SavedListItem(models.Model):
 	saved_list = models.ForeignKey(SavedList, on_delete=models.CASCADE, related_name="items")
 	category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
 	name = models.CharField(max_length=150)
-	quantity = models.PositiveIntegerField(null=True, blank=True)
+	quantity = models.PositiveIntegerField(null=True, blank=True, validators=[MinValueValidator(1)])
 	order = models.PositiveIntegerField(default=0)
 
 	class Meta:
@@ -49,13 +50,13 @@ class Trip(models.Model):
 
 	class Meta:
 		ordering = ["-updated_at"]
-		
+
 
 class TripItem(models.Model):
 	trip = models.ForeignKey(Trip, on_delete=models.CASCADE, related_name="items")
 	category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
 	name = models.CharField(max_length=150)
-	quantity = models.PositiveIntegerField(null=True, blank=True)
+	quantity = models.PositiveIntegerField(null=True, blank=True, validators=[MinValueValidator(1)])
 	packed = models.BooleanField(default=False)
 	order = models.PositiveIntegerField(default=0)
 

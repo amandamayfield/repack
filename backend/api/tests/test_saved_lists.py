@@ -53,3 +53,26 @@ def test_item_rejects_others_category(auth_client):
 		{"saved_list": lst["id"], "category": adam_cat["id"], "name": "Sneaky", "order": 0}, format="json")
 	assert r.status_code == 400
 	assert "category" in r.data
+
+
+@pytest.mark.django_db
+def test_server_assigns_order_ignoring_client_value(auth_client):
+	c, _ = auth_client
+	lst = c.post("/api/saved-lists/", {"name": "Camping"}, format="json").data
+	ids = [c.post("/api/saved-list-items/", {"saved_list": lst["id"], "name": n, "order": 0}, format="json").data["id"]
+		for n in ("A", "B", "C")]
+	c.delete(f"/api/saved-list-items/{ids[1]}/")
+	# Client-side `items.length` would have been 2 here, colliding with "C".
+	r = c.post("/api/saved-list-items/", {"saved_list": lst["id"], "name": "D"}, format="json")
+	assert r.data["order"] == 3
+	names = [i["name"] for i in c.get(f"/api/saved-lists/{lst['id']}/").data["items"]]
+	assert names == ["A", "C", "D"]
+
+
+@pytest.mark.django_db
+def test_quantity_must_be_at_least_one(auth_client):
+	c, _ = auth_client
+	lst = c.post("/api/saved-lists/", {"name": "Camping"}, format="json").data
+	r = c.post("/api/saved-list-items/", {"saved_list": lst["id"], "name": "Socks", "quantity": 0}, format="json")
+	assert r.status_code == 400
+	assert "quantity" in r.data
