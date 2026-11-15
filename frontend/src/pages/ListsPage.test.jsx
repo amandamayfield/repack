@@ -92,6 +92,9 @@ test("deleting a list (confirmed) issues a DELETE", async () => {
   const dialog = await screen.findByRole("dialog", {
     name: 'Delete "Camping"?',
   });
+  expect(dialog).toHaveTextContent(
+    "This can't be undone. It will come off your current and upcoming trips. Past trips keep it as their own section.",
+  );
   await userEvent.click(
     within(dialog).getByRole("button", { name: "Delete list" }),
   );

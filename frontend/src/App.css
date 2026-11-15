@@ -289,10 +289,6 @@ select:focus-visible {
   outline: none;
 }
 
-.field__hint {
-  font-size: 0.8125rem;
-}
-
 .form__actions {
   display: flex;
   gap: var(--space-2);
@@ -668,7 +664,7 @@ label.item-row__label {
   margin-top: var(--space-3);
 }
 
-/* ---------- Simple indexes (lists, categories) ---------- */
+/* ---------- Simple index (lists) ---------- */
 
 .list-index {
   margin: 0;
@@ -689,10 +685,6 @@ label.item-row__label {
 
 .list-index__row + .list-index__row {
   border-top: 1px solid var(--line);
-}
-
-.list-index__row--editing .form {
-  flex: 1;
 }
 
 .list-index__name {

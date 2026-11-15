@@ -3,7 +3,6 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import { useDialog } from "../hooks/useDialog";
 import { useFetch } from "../hooks/useFetch";
-import { groupByCategory } from "../lib/grouping";
 import ItemForm from "../components/ItemForm";
 import ItemRow from "../components/ItemRow";
 import ListForm from "../components/ListForm";
@@ -16,7 +15,6 @@ export default function ListEditorPage() {
     error,
     reload,
   } = useFetch(`/saved-lists/${id}/`);
-  const { data: categories } = useFetch("/categories/");
   const { confirm, dialog } = useDialog();
   const [editingDetails, setEditingDetails] = useState(false);
   const [actionError, setActionError] = useState(null);
@@ -37,7 +35,8 @@ export default function ListEditorPage() {
   async function handleDeleteItem(item) {
     const ok = await confirm({
       title: `Delete "${item.name}"?`,
-      message: "Trips you've already packed from this list keep their copy.",
+      message:
+        "It will also come off your current and upcoming trips. Past trips keep it.",
     });
     if (!ok) return;
     setActionError(null);
@@ -48,8 +47,6 @@ export default function ListEditorPage() {
       setActionError(`Couldn't delete "${item.name}". Try again.`);
     }
   }
-
-  const groups = groupByCategory(list.items, categories ?? []);
 
   return (
     <section className="page list-editor">
@@ -102,38 +99,27 @@ export default function ListEditorPage() {
           This list is empty. Add the things you always bring below.
         </p>
       ) : (
-        groups.map((group) => (
-          <section key={group.name} className="category-group">
-            <h2 className="category-group__header">{group.name}</h2>
-            <ul className="item-list">
-              {group.items.map((item) => (
-                <ItemRow
-                  key={item.id}
-                  item={item}
-                  categories={categories ?? []}
-                  onSave={async (body) => {
-                    await api(`/saved-list-items/${item.id}/`, {
-                      method: "PATCH",
-                      body,
-                    });
-                    reload();
-                  }}
-                  onDelete={() => handleDeleteItem(item)}
-                />
-              ))}
-            </ul>
-          </section>
-        ))
+        <ul className="item-list">
+          {list.items.map((item) => (
+            <ItemRow
+              key={item.id}
+              item={item}
+              onSave={async (body) => {
+                await api(`/saved-list-items/${item.id}/`, {
+                  method: "PATCH",
+                  body,
+                });
+                reload();
+              }}
+              onDelete={() => handleDeleteItem(item)}
+            />
+          ))}
+        </ul>
       )}
 
       <section className="panel">
         <h2>Add an item</h2>
-        <ItemForm
-          categories={categories ?? []}
-          onSubmit={handleAdd}
-          submitLabel="Add item"
-          idPrefix="add"
-        />
+        <ItemForm onSubmit={handleAdd} submitLabel="Add item" idPrefix="add" />
       </section>
     </section>
   );

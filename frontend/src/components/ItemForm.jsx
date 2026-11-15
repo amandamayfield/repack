@@ -1,14 +1,12 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { errorMessage } from "../api/ApiError";
 
 // Shared add/edit form for an item on a saved list or a trip. The parent adds
 // the parent id (saved_list / trip) and decides POST vs PATCH; this form only
-// owns the editable fields (name, optional quantity, optional category).
+// owns the editable fields (name, optional quantity).
 // `onSubmit(body)` returns a promise — the form manages pending/error around it.
 export default function ItemForm({
   initial = {},
-  categories,
   onSubmit,
   onCancel,
   submitLabel = "Save",
@@ -17,9 +15,6 @@ export default function ItemForm({
   const [name, setName] = useState(initial.name ?? "");
   const [quantity, setQuantity] = useState(
     initial.quantity != null ? String(initial.quantity) : "",
-  );
-  const [category, setCategory] = useState(
-    initial.category != null ? String(initial.category) : "",
   );
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(null);
@@ -34,13 +29,11 @@ export default function ItemForm({
       await onSubmit({
         name: trimmed,
         quantity: quantity === "" ? null : Number(quantity),
-        category: category === "" ? null : Number(category),
       });
       if (!onCancel) {
         // Add mode (no cancel handler) reuses the form, so reset it.
         setName("");
         setQuantity("");
-        setCategory("");
       }
     } catch (err) {
       // A 401 is handled globally (redirect to login); anything else is shown here.
@@ -74,26 +67,6 @@ export default function ItemForm({
           onChange={(e) => setQuantity(e.target.value)}
           disabled={pending}
         />
-      </div>
-
-      <div className="field">
-        <label htmlFor={`${idPrefix}-category`}>Category (optional)</label>
-        <select
-          id={`${idPrefix}-category`}
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          disabled={pending}
-        >
-          <option value="">Uncategorized</option>
-          {(categories ?? []).map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <Link to="/categories" className="field__hint">
-          {categories?.length ? "Manage categories" : "Create categories"}
-        </Link>
       </div>
 
       <div className="form__actions">

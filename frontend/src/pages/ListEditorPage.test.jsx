@@ -16,11 +16,10 @@ const LIST = {
   name: "Camping",
   description: "",
   items: [
-    { id: 1, name: "Shirts", quantity: 4, category: 10, order: 0 },
-    { id: 2, name: "Sunscreen", quantity: null, category: null, order: 1 },
+    { id: 1, name: "Shirts", quantity: 4, order: 0 },
+    { id: 2, name: "Sunscreen", quantity: null, order: 1 },
   ],
 };
-const CATEGORIES = [{ id: 10, name: "Clothes" }];
 
 function renderEditor() {
   return render(
@@ -38,7 +37,6 @@ function baseMock(overrides = {}) {
   api.mockImplementation((path, opts) => {
     if (path === "/auth/me/")
       return Promise.resolve({ id: 1, username: "amanda" });
-    if (path === "/categories/") return Promise.resolve(CATEGORIES);
     if (path === "/saved-lists/3/") return Promise.resolve(LIST);
     if (overrides.handler) {
       const r = overrides.handler(path, opts);
@@ -55,16 +53,22 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-test("renders items grouped by category with no packed checkboxes", async () => {
+test("renders items as one flat list in order, with no categories or checkboxes", async () => {
   baseMock();
   renderEditor();
 
   await screen.findByRole("heading", { name: "Camping" });
-  expect(screen.getByRole("heading", { name: "Clothes" })).toBeInTheDocument();
-  expect(
-    screen.getByRole("heading", { name: "Uncategorized" }),
-  ).toBeInTheDocument();
-  expect(screen.getByText("Shirts (4)")).toBeInTheDocument();
+  const rows = within(screen.getByRole("list")).getAllByRole("listitem");
+  expect(rows.map((r) => r.textContent)).toEqual([
+    expect.stringContaining("Shirts (4)"),
+    expect.stringContaining("Sunscreen"),
+  ]);
+  expect(screen.getAllByRole("heading").map((h) => h.textContent)).toEqual([
+    "Camping",
+    "Add an item",
+  ]);
+  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  expect(api).not.toHaveBeenCalledWith("/categories/");
   // Templates have no packed state.
   expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
 });
@@ -87,12 +91,6 @@ test("adding an item posts with saved_list (server assigns order), then refetche
     screen.getByLabelText("Item name", { selector: "#add-name" }),
     "Boots",
   );
-  // Categories load in a separate request; wait for the option to exist.
-  await screen.findAllByRole("option", { name: "Clothes" });
-  await userEvent.selectOptions(
-    screen.getByLabelText("Category (optional)", { selector: "#add-category" }),
-    "10",
-  );
   await userEvent.click(
     within(addForm).getByRole("button", { name: "Add item" }),
   );
@@ -100,7 +98,7 @@ test("adding an item posts with saved_list (server assigns order), then refetche
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith("/saved-list-items/", {
       method: "POST",
-      body: { saved_list: 3, name: "Boots", quantity: null, category: 10 },
+      body: { saved_list: 3, name: "Boots", quantity: null },
     }),
   );
 });
@@ -131,7 +129,7 @@ test("editing an item PATCHes its fields", async () => {
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith("/saved-list-items/1/", {
       method: "PATCH",
-      body: { name: "Shirts", quantity: 6, category: 10 },
+      body: { name: "Shirts", quantity: 6 },
     }),
   );
 });
@@ -153,6 +151,10 @@ test("deleting an item (confirmed) issues a DELETE", async () => {
   const dialog = await screen.findByRole("dialog", {
     name: 'Delete "Sunscreen"?',
   });
+  // Sync removes it from current trips, so the old "trips keep their copy" would be wrong.
+  expect(dialog).toHaveTextContent(
+    "It will also come off your current and upcoming trips. Past trips keep it.",
+  );
   await userEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
 
   await waitFor(() =>

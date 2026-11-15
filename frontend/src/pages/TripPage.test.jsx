@@ -222,38 +222,6 @@ test("a 409 from the server (imported elsewhere) also shows the popup", async ()
   expect(screen.queryByText(/Couldn't import/)).not.toBeInTheDocument();
 });
 
-test("adding an ad-hoc item can set its category", async () => {
-  baseMock({
-    handler: (path, opts) =>
-      path === "/trip-items/" && opts?.method === "POST"
-        ? Promise.resolve({ id: 9 })
-        : undefined,
-  });
-  renderTrip();
-  await screen.findByRole("progressbar", { name: "Yosemite packing progress" });
-
-  await userEvent.type(
-    screen.getByLabelText("Item name", { selector: "#trip-add-name" }),
-    "Hat",
-  );
-  // Categories load in a separate request; wait for the option to exist.
-  await screen.findAllByRole("option", { name: "Clothes" });
-  await userEvent.selectOptions(
-    screen.getByLabelText("Category (optional)", {
-      selector: "#trip-add-category",
-    }),
-    "10",
-  );
-  await userEvent.click(screen.getByRole("button", { name: "Add item" }));
-
-  await waitFor(() =>
-    expect(api).toHaveBeenCalledWith("/trip-items/", {
-      method: "POST",
-      body: { trip: 5, name: "Hat", quantity: null, category: 10 },
-    }),
-  );
-});
-
 test("links back to all trips", async () => {
   baseMock();
   renderTrip();
@@ -332,7 +300,7 @@ test("trip items can be edited and deleted", async () => {
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith("/trip-items/2/", {
       method: "PATCH",
-      body: { name: "Tent", quantity: 2, category: 20 },
+      body: { name: "Tent", quantity: 2 },
     }),
   );
 

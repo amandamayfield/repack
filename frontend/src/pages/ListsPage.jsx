@@ -14,7 +14,7 @@ export default function ListsPage() {
     const ok = await confirm({
       title: `Delete "${list.name}"?`,
       message:
-        "This can't be undone. Trips you've already imported it into keep their items.",
+        "This can't be undone. It will come off your current and upcoming trips. Past trips keep it as their own section.",
       confirmLabel: "Delete list",
     });
     if (!ok) return;

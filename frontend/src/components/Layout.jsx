@@ -13,7 +13,6 @@ export default function Layout() {
         <nav aria-label="Primary" className="app-nav">
           <NavLink to="/trips">Trips</NavLink>
           <NavLink to="/lists">Lists</NavLink>
-          <NavLink to="/categories">Categories</NavLink>
         </nav>
         <div className="app-account">
           {user?.username && (

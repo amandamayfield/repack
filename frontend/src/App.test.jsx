@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, expect, test, vi } from "vitest";
 import App from "./App";
@@ -47,4 +47,27 @@ test("authenticated users land in the app, and the index redirects to /trips", a
     screen.getByRole("navigation", { name: "Primary" }),
   ).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();
+});
+
+test("the nav links to Trips and Lists only", async () => {
+  api.mockResolvedValue({ id: 1, username: "amanda" });
+
+  renderAt("/trips");
+
+  const nav = await screen.findByRole("navigation", { name: "Primary" });
+  expect(
+    within(nav)
+      .getAllByRole("link")
+      .map((l) => l.textContent),
+  ).toEqual(["Trips", "Lists"]);
+});
+
+test("/categories is no longer a page and redirects to trips", async () => {
+  api.mockResolvedValue({ id: 1, username: "amanda" });
+
+  renderAt("/categories");
+
+  expect(
+    await screen.findByRole("heading", { name: "Trips" }),
+  ).toBeInTheDocument();
 });
