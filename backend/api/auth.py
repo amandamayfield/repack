@@ -1,4 +1,5 @@
 """Session auth endpoints: register, login, logout, me, and the CSRF cookie."""
+
 from django.contrib.auth import authenticate, login, logout, password_validation
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -34,6 +35,7 @@ class AuthThrottle(SimpleRateThrottle):
 	"""Per-IP limit on login/register to slow password guessing and signup spam.
 	Keyed by IP even for logged-in sessions, so a session can't bypass it.
 	Rate: REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]["auth"]."""
+
 	scope = "auth"
 
 	def get_cache_key(self, request, view):
@@ -49,6 +51,7 @@ def register(request):
 	user = s.save()
 	return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 
+
 @api_view(["POST"])
 @permission_classes([AllowAny])
 @throttle_classes([AuthThrottle])
@@ -62,19 +65,22 @@ def login_view(request):
 	login(request, user)
 	return Response(UserSerializer(user).data)
 
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def logout_view(request):
 	logout(request)
 	return Response(status=status.HTTP_204_NO_CONTENT)
 
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def me(request):
 	return Response(UserSerializer(request.user).data)
 
+
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def csrf(request):
-	get_token(request) # this call forces Django to set the csrftoken cookie
+	get_token(request)  # this call forces Django to set the csrftoken cookie
 	return Response({"detail": "ok"})

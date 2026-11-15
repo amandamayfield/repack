@@ -1,15 +1,21 @@
-from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
-from django.db.models import Count, Max, Q
-
 from django.db import transaction
-from rest_framework import status
+from django.db.models import Count, Max, Q
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .permissions import IsOwner
 from .models import Category, SavedList, SavedListItem, Trip, TripItem
-from .serializers import CategorySerializer, SavedListSerializer, SavedListItemSerializer, TripListSerializer, TripItemSerializer, TripDetailSerializer
+from .permissions import IsOwner
+from .serializers import (
+	CategorySerializer,
+	SavedListItemSerializer,
+	SavedListSerializer,
+	TripDetailSerializer,
+	TripItemSerializer,
+	TripListSerializer,
+)
+
 
 def next_order(siblings):
 	"""The `order` for a new item appended after `siblings` (0 if there are none)."""
@@ -20,6 +26,7 @@ def next_order(siblings):
 class OwnedModelViewSet(viewsets.ModelViewSet):
 	"""Base class: scope every query to the current user, and stamp
 	the current user as owner whenever something is created."""
+
 	permission_classes = [IsAuthenticated, IsOwner]
 
 	def get_queryset(self):
@@ -27,7 +34,7 @@ class OwnedModelViewSet(viewsets.ModelViewSet):
 
 	def perform_create(self, serializer):
 		serializer.save(user=self.request.user)
-		
+
 
 class CategoryViewSet(OwnedModelViewSet):
 	queryset = Category.objects.all()
@@ -38,62 +45,71 @@ class SavedListViewSet(OwnedModelViewSet):
 	queryset = SavedList.objects.all()
 	serializer_class = SavedListSerializer
 
-  
+
 class SavedListItemViewSet(viewsets.ModelViewSet):
 	permission_classes = [IsAuthenticated]
 	serializer_class = SavedListItemSerializer
 
 	def get_queryset(self):
-	# Items are owned indirectly, through their parent list's user.
+		# Items are owned indirectly, through their parent list's user.
 		return SavedListItem.objects.filter(saved_list__user=self.request.user)
 
 	def perform_create(self, serializer):
 		# The server owns ordering on create, so deletes can't cause collisions.
 		saved_list = serializer.validated_data["saved_list"]
 		serializer.save(order=next_order(saved_list.items.all()))
-	
+
 
 class TripViewSet(OwnedModelViewSet):
 	queryset = Trip.objects.all()
 
 	def get_serializer_class(self):
-	# Use the lightweight serializer for the list, the full one otherwise.
+		# Use the lightweight serializer for the list, the full one otherwise.
 		return TripListSerializer if self.action == "list" else TripDetailSerializer
 
 	def get_queryset(self):
-		qs = super().get_queryset() # already filtered to request.user
+		qs = super().get_queryset()  # already filtered to request.user
 		if self.action == "list":
 			qs = qs.annotate(
 				total_count=Count("items"),
 				packed_count=Count("items", filter=Q(items__packed=True)),
 			)
 		return qs
-	
+
 	@action(detail=True, methods=["post"], url_path="import-list")
 	def import_list(self, request, pk=None):
-		trip = self.get_object() # ownership-scoped: 404s if not yours
-		saved_list = SavedList.objects.filter(
-			id=request.data.get("saved_list_id"), user=request.user).first()
+		trip = self.get_object()  # ownership-scoped: 404s if not yours
+		saved_list = SavedList.objects.filter(id=request.data.get("saved_list_id"), user=request.user).first()
 		if saved_list is None:
 			return Response({"detail": "List not found."}, status=status.HTTP_404_NOT_FOUND)
-			
+
 		with transaction.atomic():
 			# Lock the trip row so two simultaneous imports can't both pass the check.
 			trip = Trip.objects.select_for_update().get(pk=trip.pk)
 			if trip.imported_lists.filter(pk=saved_list.pk).exists():
-				return Response({"detail": "This list has already been imported into this trip."},
-					status=status.HTTP_409_CONFLICT)
+				return Response(
+					{"detail": "This list has already been imported into this trip."}, status=status.HTTP_409_CONFLICT
+				)
 			trip.imported_lists.add(saved_list)
 			# Append after the trip's existing items instead of reusing the
 			# template's order values, which would collide with them.
 			start = next_order(trip.items.all())
-			TripItem.objects.bulk_create([
-				TripItem(trip=trip, category_id=src.category_id, name=src.name, quantity=src.quantity, order=start + i, packed=False)
-				for i, src in enumerate(saved_list.items.all())
-			])
+			TripItem.objects.bulk_create(
+				[
+					TripItem(
+						trip=trip,
+						category_id=src.category_id,
+						name=src.name,
+						quantity=src.quantity,
+						order=start + i,
+						packed=False,
+					)
+					for i, src in enumerate(saved_list.items.all())
+				]
+			)
 		return Response(status=status.HTTP_201_CREATED)
 
-  
+
 class TripItemViewSet(viewsets.ModelViewSet):
 	permission_classes = [IsAuthenticated]
 	serializer_class = TripItemSerializer

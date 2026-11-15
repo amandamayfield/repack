@@ -38,7 +38,8 @@ function renderTrip() {
 // Baseline: session + trip + categories + saved lists.
 function baseMock(overrides = {}) {
   api.mockImplementation((path, opts) => {
-    if (path === "/auth/me/") return Promise.resolve({ id: 1, username: "amanda" });
+    if (path === "/auth/me/")
+      return Promise.resolve({ id: 1, username: "amanda" });
     if (path === "/categories/") return Promise.resolve(CATEGORIES);
     if (path === "/saved-lists/")
       return Promise.resolve([
@@ -65,13 +66,17 @@ test("renders the hero progress and groups items by category name", async () => 
   baseMock();
   renderTrip();
 
-  const hero = await screen.findByRole("progressbar", { name: "Yosemite packing progress" });
+  const hero = await screen.findByRole("progressbar", {
+    name: "Yosemite packing progress",
+  });
   expect(hero).toHaveAttribute("aria-valuenow", "1"); // 1 of 3 packed
   expect(hero).toHaveAttribute("aria-valuemax", "3");
 
   expect(screen.getByRole("heading", { name: /Clothes/ })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: /Gear/ })).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: /Uncategorized/ })).toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: /Uncategorized/ }),
+  ).toBeInTheDocument();
   // quantity is shown alongside the name
   expect(screen.getByText("Socks (3)")).toBeInTheDocument();
 });
@@ -109,9 +114,13 @@ test("a failed toggle reverts the checkbox and shows an error", async () => {
   const socks = screen.getByRole("checkbox", { name: /Socks/ });
   await userEvent.click(socks);
 
-  expect(await screen.findByRole("alert")).toHaveTextContent("Could not update that item");
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Could not update that item",
+  );
   // Reverted back to unchecked.
-  await waitFor(() => expect(screen.getByRole("checkbox", { name: /Socks/ })).not.toBeChecked());
+  await waitFor(() =>
+    expect(screen.getByRole("checkbox", { name: /Socks/ })).not.toBeChecked(),
+  );
 });
 
 test("importing a saved list posts to /import-list/ with the chosen id", async () => {
@@ -124,9 +133,16 @@ test("importing a saved list posts to /import-list/ with the chosen id", async (
   renderTrip();
   await screen.findByRole("progressbar", { name: "Yosemite packing progress" });
 
-  const importForm = screen.getByRole("heading", { name: "Import a saved list" }).closest("form");
-  await userEvent.selectOptions(within(importForm).getByLabelText("Saved list"), "99");
-  await userEvent.click(within(importForm).getByRole("button", { name: "Import" }));
+  const importForm = screen
+    .getByRole("heading", { name: "Import a saved list" })
+    .closest("form");
+  await userEvent.selectOptions(
+    within(importForm).getByLabelText("Saved list"),
+    "99",
+  );
+  await userEvent.click(
+    within(importForm).getByRole("button", { name: "Import" }),
+  );
 
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith("/trips/5/import-list/", {
@@ -142,12 +158,24 @@ test("choosing a list that was already imported shows a popup and doesn't re-imp
   renderTrip();
   await screen.findByRole("progressbar", { name: "Yosemite packing progress" });
 
-  const importForm = screen.getByRole("heading", { name: "Import a saved list" }).closest("form");
-  await userEvent.selectOptions(within(importForm).getByLabelText("Saved list"), "99");
-  await userEvent.click(within(importForm).getByRole("button", { name: "Import" }));
+  const importForm = screen
+    .getByRole("heading", { name: "Import a saved list" })
+    .closest("form");
+  await userEvent.selectOptions(
+    within(importForm).getByLabelText("Saved list"),
+    "99",
+  );
+  await userEvent.click(
+    within(importForm).getByRole("button", { name: "Import" }),
+  );
 
-  expect(alert).toHaveBeenCalledWith('"Camping" has already been imported into this trip.');
-  expect(api).not.toHaveBeenCalledWith("/trips/5/import-list/", expect.anything());
+  expect(alert).toHaveBeenCalledWith(
+    '"Camping" has already been imported into this trip.',
+  );
+  expect(api).not.toHaveBeenCalledWith(
+    "/trips/5/import-list/",
+    expect.anything(),
+  );
 });
 
 test("a 409 from the server (imported elsewhere) also shows the popup", async () => {
@@ -161,12 +189,21 @@ test("a 409 from the server (imported elsewhere) also shows the popup", async ()
   renderTrip();
   await screen.findByRole("progressbar", { name: "Yosemite packing progress" });
 
-  const importForm = screen.getByRole("heading", { name: "Import a saved list" }).closest("form");
-  await userEvent.selectOptions(within(importForm).getByLabelText("Saved list"), "98");
-  await userEvent.click(within(importForm).getByRole("button", { name: "Import" }));
+  const importForm = screen
+    .getByRole("heading", { name: "Import a saved list" })
+    .closest("form");
+  await userEvent.selectOptions(
+    within(importForm).getByLabelText("Saved list"),
+    "98",
+  );
+  await userEvent.click(
+    within(importForm).getByRole("button", { name: "Import" }),
+  );
 
   await waitFor(() =>
-    expect(alert).toHaveBeenCalledWith('"Beach" has already been imported into this trip.'),
+    expect(alert).toHaveBeenCalledWith(
+      '"Beach" has already been imported into this trip.',
+    ),
   );
   expect(screen.queryByText(/Could not import/)).not.toBeInTheDocument();
 });

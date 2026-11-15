@@ -9,7 +9,12 @@ import SavedListItemForm from "../components/SavedListItemForm";
 export default function ListEditorPage() {
   const { id } = useParams();
   const { handle403 } = useAuth();
-  const { data: list, loading, error, reload } = useFetch(`/saved-lists/${id}/`);
+  const {
+    data: list,
+    loading,
+    error,
+    reload,
+  } = useFetch(`/saved-lists/${id}/`);
   const { data: categories } = useFetch("/categories/");
 
   if (loading) return <p role="status">Loading list…</p>;
@@ -37,7 +42,9 @@ export default function ListEditorPage() {
         <Link to="/lists">← All lists</Link>
       </p>
       <h1>{list.name}</h1>
-      {list.description && <p className="list-editor__description">{list.description}</p>}
+      {list.description && (
+        <p className="list-editor__description">{list.description}</p>
+      )}
 
       {list.items.length === 0 ? (
         <p className="empty-state">No items yet. Add one below.</p>
@@ -94,7 +101,8 @@ function EditableItemRow({ item, categories, reload, handle403 }) {
       await api(`/saved-list-items/${item.id}/`, { method: "DELETE" });
       reload();
     } catch (err) {
-      if (!handle403(err)) setError("Could not delete the item. Please try again.");
+      if (!handle403(err))
+        setError("Could not delete the item. Please try again.");
     }
   }
 

@@ -4,7 +4,9 @@ import ProgressBar from "./ProgressBar";
 
 test("reports the packed count via ARIA and fills proportionally", () => {
   render(<ProgressBar value={1} max={2} label="Beach packing progress" />);
-  const bar = screen.getByRole("progressbar", { name: "Beach packing progress" });
+  const bar = screen.getByRole("progressbar", {
+    name: "Beach packing progress",
+  });
   expect(bar).toHaveAttribute("aria-valuenow", "1");
   expect(bar).toHaveAttribute("aria-valuemax", "2");
   expect(bar.firstChild).toHaveStyle({ width: "50%" });

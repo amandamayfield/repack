@@ -30,7 +30,8 @@ export default function TripsPage() {
       setEndDate("");
       reload();
     } catch (err) {
-      if (!handle403(err)) setFormError("Could not create the trip. Please try again.");
+      if (!handle403(err))
+        setFormError("Could not create the trip. Please try again.");
     } finally {
       setPending(false);
     }
@@ -87,7 +88,9 @@ export default function TripsPage() {
       {error && !loading && <p role="alert">Could not load your trips.</p>}
 
       {!loading && !error && trips?.length === 0 && (
-        <p className="empty-state">No trips yet. Create one above to get started.</p>
+        <p className="empty-state">
+          No trips yet. Create one above to get started.
+        </p>
       )}
 
       {!loading && !error && trips?.length > 0 && (
@@ -98,7 +101,9 @@ export default function TripsPage() {
                 <h2 className="trip-card__name">{trip.name}</h2>
                 {(trip.start_date || trip.end_date) && (
                   <p className="trip-card__dates">
-                    {[trip.start_date, trip.end_date].filter(Boolean).join(" – ")}
+                    {[trip.start_date, trip.end_date]
+                      .filter(Boolean)
+                      .join(" – ")}
                   </p>
                 )}
                 <ProgressBar

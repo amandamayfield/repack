@@ -42,7 +42,5 @@ test("authenticated users land in the app, and the index redirects to /trips", a
   expect(
     screen.getByRole("navigation", { name: "Primary" }),
   ).toBeInTheDocument();
-  expect(
-    screen.getByRole("button", { name: "Log out" }),
-  ).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Log out" })).toBeInTheDocument();
 });

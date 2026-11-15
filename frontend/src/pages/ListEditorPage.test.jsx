@@ -33,7 +33,8 @@ function renderEditor() {
 
 function baseMock(overrides = {}) {
   api.mockImplementation((path, opts) => {
-    if (path === "/auth/me/") return Promise.resolve({ id: 1, username: "amanda" });
+    if (path === "/auth/me/")
+      return Promise.resolve({ id: 1, username: "amanda" });
     if (path === "/categories/") return Promise.resolve(CATEGORIES);
     if (path === "/saved-lists/3/") return Promise.resolve(LIST);
     if (overrides.handler) {
@@ -57,7 +58,9 @@ test("renders items grouped by category with no packed checkboxes", async () => 
 
   await screen.findByRole("heading", { name: "Camping" });
   expect(screen.getByRole("heading", { name: "Clothes" })).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "Uncategorized" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: "Uncategorized" }),
+  ).toBeInTheDocument();
   expect(screen.getByText("Shirts (4)")).toBeInTheDocument();
   // Templates have no packed state.
   expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
@@ -77,12 +80,17 @@ test("adding an item posts with saved_list (server assigns order), then refetche
     .getByLabelText("Item name", { selector: "#add-name" })
     .closest("form");
 
-  await userEvent.type(screen.getByLabelText("Item name", { selector: "#add-name" }), "Boots");
+  await userEvent.type(
+    screen.getByLabelText("Item name", { selector: "#add-name" }),
+    "Boots",
+  );
   await userEvent.selectOptions(
     screen.getByLabelText("Category (optional)", { selector: "#add-category" }),
     "10",
   );
-  await userEvent.click(within(addForm).getByRole("button", { name: "Add item" }));
+  await userEvent.click(
+    within(addForm).getByRole("button", { name: "Add item" }),
+  );
 
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith("/saved-list-items/", {
@@ -104,9 +112,13 @@ test("editing an item PATCHes its fields", async () => {
 
   // Open the edit form on the "Shirts" row.
   const shirtsRow = screen.getByText("Shirts (4)").closest("li");
-  await userEvent.click(within(shirtsRow).getByRole("button", { name: "Edit" }));
+  await userEvent.click(
+    within(shirtsRow).getByRole("button", { name: "Edit" }),
+  );
 
-  const qty = screen.getByLabelText("Quantity (optional)", { selector: "#edit-1-qty" });
+  const qty = screen.getByLabelText("Quantity (optional)", {
+    selector: "#edit-1-qty",
+  });
   await userEvent.clear(qty);
   await userEvent.type(qty, "6");
   await userEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -131,9 +143,13 @@ test("deleting an item (confirmed) issues a DELETE", async () => {
   await screen.findByRole("heading", { name: "Camping" });
 
   const sunscreenRow = screen.getByText("Sunscreen").closest("li");
-  await userEvent.click(within(sunscreenRow).getByRole("button", { name: "Delete" }));
+  await userEvent.click(
+    within(sunscreenRow).getByRole("button", { name: "Delete" }),
+  );
 
   await waitFor(() =>
-    expect(api).toHaveBeenCalledWith("/saved-list-items/2/", { method: "DELETE" }),
+    expect(api).toHaveBeenCalledWith("/saved-list-items/2/", {
+      method: "DELETE",
+    }),
   );
 });

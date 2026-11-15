@@ -96,7 +96,12 @@ export default function LoginPage() {
 
       <p>
         {isLogin ? "Need an account?" : "Already have an account?"}{" "}
-        <button type="button" className="link-button" onClick={switchMode} disabled={pending}>
+        <button
+          type="button"
+          className="link-button"
+          onClick={switchMode}
+          disabled={pending}
+        >
           {isLogin ? "Create one" : "Sign in"}
         </button>
       </p>

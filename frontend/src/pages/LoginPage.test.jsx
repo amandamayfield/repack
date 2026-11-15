@@ -30,7 +30,8 @@ beforeEach(() => {
 test("successful login authenticates and redirects to /trips", async () => {
   api.mockImplementation((path) => {
     if (path === "/auth/me/") return Promise.reject(new Error("403"));
-    if (path === "/auth/login/") return Promise.resolve({ id: 1, username: "amanda" });
+    if (path === "/auth/login/")
+      return Promise.resolve({ id: 1, username: "amanda" });
     return Promise.resolve(null);
   });
 
@@ -41,7 +42,9 @@ test("successful login authenticates and redirects to /trips", async () => {
   await userEvent.type(screen.getByLabelText("Password"), "pw12345!");
   await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-  expect(await screen.findByRole("heading", { name: "Trips" })).toBeInTheDocument();
+  expect(
+    await screen.findByRole("heading", { name: "Trips" }),
+  ).toBeInTheDocument();
   expect(api).toHaveBeenCalledWith("/auth/login/", {
     method: "POST",
     body: { username: "amanda", password: "pw12345!" },
@@ -71,8 +74,10 @@ test("a 400 from login shows an inline error and stays on the form", async () =>
 test("toggling to register mode switches the heading and calls register", async () => {
   api.mockImplementation((path) => {
     if (path === "/auth/me/") return Promise.reject(new Error("403"));
-    if (path === "/auth/register/") return Promise.resolve({ id: 2, username: "newbie" });
-    if (path === "/auth/login/") return Promise.resolve({ id: 2, username: "newbie" });
+    if (path === "/auth/register/")
+      return Promise.resolve({ id: 2, username: "newbie" });
+    if (path === "/auth/login/")
+      return Promise.resolve({ id: 2, username: "newbie" });
     return Promise.resolve(null);
   });
 
@@ -80,7 +85,9 @@ test("toggling to register mode switches the heading and calls register", async 
   await screen.findByRole("heading", { name: "Sign in" });
 
   await userEvent.click(screen.getByRole("button", { name: "Create one" }));
-  expect(screen.getByRole("heading", { name: "Create account" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: "Create account" }),
+  ).toBeInTheDocument();
 
   await userEvent.type(screen.getByLabelText("Username"), "newbie");
   await userEvent.type(screen.getByLabelText("Password"), "pw12345!");

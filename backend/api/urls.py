@@ -1,7 +1,8 @@
 from django.urls import path
-from . import auth
 from rest_framework.routers import DefaultRouter
-from .views import CategoryViewSet, SavedListViewSet, SavedListItemViewSet, TripViewSet, TripItemViewSet
+
+from . import auth
+from .views import CategoryViewSet, SavedListItemViewSet, SavedListViewSet, TripItemViewSet, TripViewSet
 
 urlpatterns = [
 	path("auth/register/", auth.register),

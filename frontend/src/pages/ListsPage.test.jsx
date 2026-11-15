@@ -27,8 +27,10 @@ afterEach(() => {
 
 test("lists the user's saved lists with links to each editor", async () => {
   api.mockImplementation((path) => {
-    if (path === "/auth/me/") return Promise.resolve({ id: 1, username: "amanda" });
-    if (path === "/saved-lists/") return Promise.resolve([{ id: 3, name: "Camping" }]);
+    if (path === "/auth/me/")
+      return Promise.resolve({ id: 1, username: "amanda" });
+    if (path === "/saved-lists/")
+      return Promise.resolve([{ id: 3, name: "Camping" }]);
     return Promise.resolve(null);
   });
 
@@ -41,10 +43,14 @@ test("creating a list posts the name and refetches", async () => {
   const calls = [];
   api.mockImplementation((path, opts) => {
     calls.push([path, opts]);
-    if (path === "/auth/me/") return Promise.resolve({ id: 1, username: "amanda" });
-    if (path === "/saved-lists/" && opts?.method === "POST") return Promise.resolve({ id: 5 });
+    if (path === "/auth/me/")
+      return Promise.resolve({ id: 1, username: "amanda" });
+    if (path === "/saved-lists/" && opts?.method === "POST")
+      return Promise.resolve({ id: 5 });
     if (path === "/saved-lists/") {
-      const created = calls.some(([p, o]) => p === "/saved-lists/" && o?.method === "POST");
+      const created = calls.some(
+        ([p, o]) => p === "/saved-lists/" && o?.method === "POST",
+      );
       return Promise.resolve(created ? [{ id: 5, name: "Ski" }] : []);
     }
     return Promise.resolve(null);
@@ -68,9 +74,12 @@ test("creating a list posts the name and refetches", async () => {
 test("deleting a list (confirmed) issues a DELETE", async () => {
   vi.spyOn(window, "confirm").mockReturnValue(true);
   api.mockImplementation((path, opts) => {
-    if (path === "/auth/me/") return Promise.resolve({ id: 1, username: "amanda" });
-    if (path === "/saved-lists/3/" && opts?.method === "DELETE") return Promise.resolve(null);
-    if (path === "/saved-lists/") return Promise.resolve([{ id: 3, name: "Camping" }]);
+    if (path === "/auth/me/")
+      return Promise.resolve({ id: 1, username: "amanda" });
+    if (path === "/saved-lists/3/" && opts?.method === "DELETE")
+      return Promise.resolve(null);
+    if (path === "/saved-lists/")
+      return Promise.resolve([{ id: 3, name: "Camping" }]);
     return Promise.resolve(null);
   });
 

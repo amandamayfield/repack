@@ -6,19 +6,22 @@ from rest_framework.test import APIClient
 @pytest.fixture
 def auth_client():
 	u = User.objects.create_user(username="ann", password="pw12345!")
-	c = APIClient(); c.force_authenticate(u)
+	c = APIClient()
+	c.force_authenticate(u)
 	return c, u
 
-  
+
 @pytest.mark.django_db
 def test_create_trip_and_toggle_packed(auth_client):
 	c, _ = auth_client
-	trip = c.post("/api/trips/", {"name": "Beach", "start_date": "2026-07-01", "end_date": "2026-07-03"}, format="json").data
+	trip = c.post(
+		"/api/trips/", {"name": "Beach", "start_date": "2026-07-01", "end_date": "2026-07-03"}, format="json"
+	).data
 	item = c.post("/api/trip-items/", {"trip": trip["id"], "name": "Towel", "order": 0}, format="json").data
 	assert item["packed"] is False
 	r = c.patch(f"/api/trip-items/{item['id']}/", {"packed": True}, format="json")
 	assert r.status_code == 200 and r.data["packed"] is True
- 
+
 
 @pytest.mark.django_db
 def test_trip_list_includes_progress_counts(auth_client):
@@ -32,23 +35,28 @@ def test_trip_list_includes_progress_counts(auth_client):
 	assert row["total_count"] == 2
 	assert row["packed_count"] == 1
 
-  
+
 @pytest.mark.django_db
 def test_trip_isolation(auth_client):
 	c, _ = auth_client
 	trip = c.post("/api/trips/", {"name": "Beach"}, format="json").data
-	adam = APIClient(); adam.force_authenticate(User.objects.create_user("adam", password="pw12345!"))
+	adam = APIClient()
+	adam.force_authenticate(User.objects.create_user("adam", password="pw12345!"))
 	assert adam.get(f"/api/trips/{trip['id']}/").status_code == 404
+
 
 @pytest.mark.django_db
 def test_trip_item_rejects_others_category(auth_client):
 	c, _ = auth_client
 	trip = c.post("/api/trips/", {"name": "Beach"}, format="json").data
 	item = c.post("/api/trip-items/", {"trip": trip["id"], "name": "Towel", "order": 0}, format="json").data
-	adam = APIClient(); adam.force_authenticate(User.objects.create_user("adam", password="pw12345!"))
+	adam = APIClient()
+	adam.force_authenticate(User.objects.create_user("adam", password="pw12345!"))
 	adam_cat = adam.post("/api/categories/", {"name": "Adam Cat", "order": 0}, format="json").data
 	# Both on create and when re-pointing an existing item via PATCH.
-	r = c.post("/api/trip-items/", {"trip": trip["id"], "category": adam_cat["id"], "name": "X", "order": 1}, format="json")
+	r = c.post(
+		"/api/trip-items/", {"trip": trip["id"], "category": adam_cat["id"], "name": "X", "order": 1}, format="json"
+	)
 	assert r.status_code == 400
 	r = c.patch(f"/api/trip-items/{item['id']}/", {"category": adam_cat["id"]}, format="json")
 	assert r.status_code == 400

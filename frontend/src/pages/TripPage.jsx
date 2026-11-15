@@ -50,13 +50,17 @@ function TripDetail({ trip, categories, reload, handle403 }) {
       prev.map((it) => (it.id === item.id ? { ...it, packed } : it)),
     );
     try {
-      await api(`/trip-items/${item.id}/`, { method: "PATCH", body: { packed } });
+      await api(`/trip-items/${item.id}/`, {
+        method: "PATCH",
+        body: { packed },
+      });
     } catch (err) {
       // Revert on failure so the checkbox never lies about server state.
       setItems((prev) =>
         prev.map((it) => (it.id === item.id ? { ...it, packed: !packed } : it)),
       );
-      if (!handle403(err)) setToggleError("Could not update that item. Please try again.");
+      if (!handle403(err))
+        setToggleError("Could not update that item. Please try again.");
     }
   }
 
@@ -107,11 +111,7 @@ function TripDetail({ trip, categories, reload, handle403 }) {
         })
       )}
 
-      <AddItemForm
-        tripId={trip.id}
-        reload={reload}
-        handle403={handle403}
-      />
+      <AddItemForm tripId={trip.id} reload={reload} handle403={handle403} />
       <ImportListForm
         tripId={trip.id}
         importedListIds={trip.imported_lists ?? []}
@@ -142,7 +142,8 @@ function AddItemForm({ tripId, reload, handle403 }) {
       setQuantity("");
       reload();
     } catch (err) {
-      if (!handle403(err)) setError("Could not add the item. Please try again.");
+      if (!handle403(err))
+        setError("Could not add the item. Please try again.");
     } finally {
       setPending(false);
     }

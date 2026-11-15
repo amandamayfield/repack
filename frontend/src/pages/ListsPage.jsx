@@ -26,7 +26,8 @@ export default function ListsPage() {
       setDescription("");
       reload();
     } catch (err) {
-      if (!handle403(err)) setFormError("Could not create the list. Please try again.");
+      if (!handle403(err))
+        setFormError("Could not create the list. Please try again.");
     } finally {
       setPending(false);
     }
@@ -38,7 +39,8 @@ export default function ListsPage() {
       await api(`/saved-lists/${list.id}/`, { method: "DELETE" });
       reload();
     } catch (err) {
-      if (!handle403(err)) setFormError("Could not delete the list. Please try again.");
+      if (!handle403(err))
+        setFormError("Could not delete the list. Please try again.");
     }
   }
 
@@ -77,7 +79,9 @@ export default function ListsPage() {
       </form>
 
       {loading && <p role="status">Loading lists…</p>}
-      {error && !loading && <p role="alert">Could not load your saved lists.</p>}
+      {error && !loading && (
+        <p role="alert">Could not load your saved lists.</p>
+      )}
 
       {!loading && !error && lists?.length === 0 && (
         <p className="empty-state">No saved lists yet. Create one above.</p>

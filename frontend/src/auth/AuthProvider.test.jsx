@@ -13,12 +13,8 @@ function Probe() {
   return (
     <div>
       <p>user:{user ? user.username : "none"}</p>
-      <button onClick={() => register("amanda", "pw12345!")}>
-        register
-      </button>
-      <button onClick={() => handle403(new Error("403"))}>
-        expire
-      </button>
+      <button onClick={() => register("amanda", "pw12345!")}>register</button>
+      <button onClick={() => handle403(new Error("403"))}>expire</button>
     </div>
   );
 }

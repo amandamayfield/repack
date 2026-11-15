@@ -15,14 +15,10 @@ export function useFetch(path) {
     let active = true;
     api(path)
       .then(
-        (d) =>
-          active &&
-          setState({ data: d, error: null, resolvedPath: path }),
+        (d) => active && setState({ data: d, error: null, resolvedPath: path }),
       )
       .catch(
-        (e) =>
-          active &&
-          setState({ data: null, error: e, resolvedPath: path }),
+        (e) => active && setState({ data: null, error: e, resolvedPath: path }),
       );
     return () => {
       active = false;

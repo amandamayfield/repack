@@ -1,6 +1,7 @@
 import pytest
 from rest_framework.test import APIClient
 
+
 @pytest.mark.django_db
 def test_register_then_login_then_me():
 	c = APIClient()
@@ -15,10 +16,12 @@ def test_register_then_login_then_me():
 	assert r.status_code == 200
 	assert r.data["username"] == "amanda"
 
+
 @pytest.mark.django_db
 def test_me_requires_auth():
 	c = APIClient()
 	assert c.get("/api/auth/me/").status_code == 403
+
 
 @pytest.mark.django_db
 def test_logout_clears_session():
@@ -28,6 +31,7 @@ def test_logout_clears_session():
 	assert c.post("/api/auth/logout/").status_code == 204
 	assert c.get("/api/auth/me/").status_code == 403
 
+
 @pytest.mark.django_db
 def test_register_rejects_weak_password():
 	c = APIClient()
@@ -35,12 +39,14 @@ def test_register_rejects_weak_password():
 	assert r.status_code == 400
 	assert "password" in r.data
 
+
 @pytest.mark.django_db
 def test_register_rejects_password_similar_to_username():
 	c = APIClient()
 	r = c.post("/api/auth/register/", {"username": "amandamayfield", "password": "amandamayfield1"}, format="json")
 	assert r.status_code == 400
 	assert "password" in r.data
+
 
 @pytest.mark.django_db
 def test_login_is_rate_limited():
