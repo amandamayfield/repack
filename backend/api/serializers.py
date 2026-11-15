@@ -61,10 +61,12 @@ class TripListSerializer(serializers.ModelSerializer):
   
 class TripDetailSerializer(serializers.ModelSerializer):
 	items = TripItemSerializer(many=True, read_only=True)
+	# Changed only by the import-list action, never written directly.
+	imported_lists = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
 
 	class Meta:
 		model = Trip
-		fields = ["id", "name", "days", "start_date", "end_date", "items", "created_at", "updated_at"]
+		fields = ["id", "name", "days", "start_date", "end_date", "imported_lists", "items", "created_at", "updated_at"]
 
 	def validate(self, attrs):
 		# On PATCH only one date may be sent; compare against the stored other one.

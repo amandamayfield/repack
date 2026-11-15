@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import TripPage from "./TripPage";
 import { AuthProvider } from "../auth/AuthProvider";
 import { api } from "../api/client";
@@ -11,6 +11,7 @@ vi.mock("../api/client", () => ({ api: vi.fn() }));
 const TRIP = {
   id: 5,
   name: "Yosemite",
+  imported_lists: [],
   items: [
     { id: 1, name: "Socks", quantity: 3, category: 10, packed: false },
     { id: 2, name: "Tent", category: 20, packed: true },
@@ -39,8 +40,12 @@ function baseMock(overrides = {}) {
   api.mockImplementation((path, opts) => {
     if (path === "/auth/me/") return Promise.resolve({ id: 1, username: "amanda" });
     if (path === "/categories/") return Promise.resolve(CATEGORIES);
-    if (path === "/saved-lists/") return Promise.resolve([{ id: 99, name: "Camping" }]);
-    if (path === "/trips/5/") return Promise.resolve(TRIP);
+    if (path === "/saved-lists/")
+      return Promise.resolve([
+        { id: 99, name: "Camping" },
+        { id: 98, name: "Beach" },
+      ]);
+    if (path === "/trips/5/") return Promise.resolve(overrides.trip ?? TRIP);
     if (overrides.handler) {
       const r = overrides.handler(path, opts);
       if (r !== undefined) return r;
@@ -51,6 +56,9 @@ function baseMock(overrides = {}) {
 
 beforeEach(() => {
   api.mockReset();
+});
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 test("renders the hero progress and groups items by category name", async () => {
@@ -126,4 +134,39 @@ test("importing a saved list posts to /import-list/ with the chosen id", async (
       body: { saved_list_id: 99 },
     }),
   );
+});
+
+test("choosing a list that was already imported shows a popup and doesn't re-import", async () => {
+  const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+  baseMock({ trip: { ...TRIP, imported_lists: [99] } });
+  renderTrip();
+  await screen.findByRole("progressbar", { name: "Yosemite packing progress" });
+
+  const importForm = screen.getByRole("heading", { name: "Import a saved list" }).closest("form");
+  await userEvent.selectOptions(within(importForm).getByLabelText("Saved list"), "99");
+  await userEvent.click(within(importForm).getByRole("button", { name: "Import" }));
+
+  expect(alert).toHaveBeenCalledWith('"Camping" has already been imported into this trip.');
+  expect(api).not.toHaveBeenCalledWith("/trips/5/import-list/", expect.anything());
+});
+
+test("a 409 from the server (imported elsewhere) also shows the popup", async () => {
+  const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+  baseMock({
+    handler: (path, opts) =>
+      path === "/trips/5/import-list/" && opts?.method === "POST"
+        ? Promise.reject(new Error("409"))
+        : undefined,
+  });
+  renderTrip();
+  await screen.findByRole("progressbar", { name: "Yosemite packing progress" });
+
+  const importForm = screen.getByRole("heading", { name: "Import a saved list" }).closest("form");
+  await userEvent.selectOptions(within(importForm).getByLabelText("Saved list"), "98");
+  await userEvent.click(within(importForm).getByRole("button", { name: "Import" }));
+
+  await waitFor(() =>
+    expect(alert).toHaveBeenCalledWith('"Beach" has already been imported into this trip.'),
+  );
+  expect(screen.queryByText(/Could not import/)).not.toBeInTheDocument();
 });

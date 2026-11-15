@@ -117,7 +117,12 @@ function TripDetail({ trip, categories, reload, handle403 }) {
         reload={reload}
         handle403={handle403}
       />
-      <ImportListForm tripId={trip.id} reload={reload} handle403={handle403} />
+      <ImportListForm
+        tripId={trip.id}
+        importedListIds={trip.imported_lists ?? []}
+        reload={reload}
+        handle403={handle403}
+      />
     </section>
   );
 }
@@ -183,27 +188,45 @@ function AddItemForm({ tripId, reload, handle403 }) {
   );
 }
 
-function ImportListForm({ tripId, reload, handle403 }) {
+function ImportListForm({ tripId, importedListIds, reload, handle403 }) {
   const { data: lists } = useFetch("/saved-lists/");
   const [selected, setSelected] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(null);
 
+  function alertAlreadyImported(listId) {
+    const name = lists?.find((l) => l.id === listId)?.name ?? "That list";
+    window.alert(`"${name}" has already been imported into this trip.`);
+  }
+
   async function handleImport(event) {
     event.preventDefault();
     if (selected === "") return;
+    const listId = Number(selected);
+    // Each list can only be imported into a trip once (the server enforces it too).
+    if (importedListIds.includes(listId)) {
+      alertAlreadyImported(listId);
+      return;
+    }
     setPending(true);
     setError(null);
     try {
       // NOTE: the real route is /import-list/ (AI-CONTEXT.md), not /import/.
       await api(`/trips/${tripId}/import-list/`, {
         method: "POST",
-        body: { saved_list_id: Number(selected) },
+        body: { saved_list_id: listId },
       });
       setSelected("");
       reload();
     } catch (err) {
-      if (!handle403(err)) setError("Could not import that list. Please try again.");
+      if (err?.message === "409") {
+        // Imported elsewhere (e.g. another tab) since this page loaded; resync.
+        alertAlreadyImported(listId);
+        setSelected("");
+        reload();
+      } else if (!handle403(err)) {
+        setError("Could not import that list. Please try again.");
+      }
     } finally {
       setPending(false);
     }

@@ -81,6 +81,12 @@ class TripViewSet(OwnedModelViewSet):
 			return Response({"detail": "List not found."}, status=status.HTTP_404_NOT_FOUND)
 			
 		with transaction.atomic():
+			# Lock the trip row so two simultaneous imports can't both pass the check.
+			trip = Trip.objects.select_for_update().get(pk=trip.pk)
+			if trip.imported_lists.filter(pk=saved_list.pk).exists():
+				return Response({"detail": "This list has already been imported into this trip."},
+					status=status.HTTP_409_CONFLICT)
+			trip.imported_lists.add(saved_list)
 			# Append after the trip's existing items instead of reusing the
 			# template's order values, which would collide with them.
 			start = next_order(trip.items.all())

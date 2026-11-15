@@ -67,3 +67,27 @@ def test_import_appends_after_existing_trip_items(auth_client):
 	items = c.get(f"/api/trips/{trip['id']}/").data["items"]
 	assert [i["name"] for i in items] == ["Passport", "Shirts", "Sunscreen"]
 	assert [i["order"] for i in items] == [0, 1, 2]
+
+
+@pytest.mark.django_db
+def test_cannot_import_same_list_twice(auth_client):
+	c, _ = auth_client
+	lst = _seed_list(c)
+	trip = c.post("/api/trips/", {"name": "Yosemite"}, format="json").data
+	url = f"/api/trips/{trip['id']}/import-list/"
+	assert c.post(url, {"saved_list_id": lst["id"]}, format="json").status_code == 201
+	r = c.post(url, {"saved_list_id": lst["id"]}, format="json")
+	assert r.status_code == 409
+	detail = c.get(f"/api/trips/{trip['id']}/").data
+	assert len(detail["items"]) == 2 # nothing duplicated
+	assert detail["imported_lists"] == [lst["id"]]
+
+
+@pytest.mark.django_db
+def test_same_list_can_be_imported_into_different_trips(auth_client):
+	c, _ = auth_client
+	lst = _seed_list(c)
+	for name in ("Yosemite", "Zion"):
+		trip = c.post("/api/trips/", {"name": name}, format="json").data
+		r = c.post(f"/api/trips/{trip['id']}/import-list/", {"saved_list_id": lst["id"]}, format="json")
+		assert r.status_code == 201

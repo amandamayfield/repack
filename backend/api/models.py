@@ -45,6 +45,8 @@ class Trip(models.Model):
 	days = models.PositiveIntegerField(null=True, blank=True)
 	start_date = models.DateField(null=True, blank=True)
 	end_date = models.DateField(null=True, blank=True)
+	# Saved lists already copied into this trip; each list can be imported once.
+	imported_lists = models.ManyToManyField(SavedList, blank=True, related_name="+")
 	created_at = models.DateTimeField(auto_now_add=True)
 	updated_at = models.DateTimeField(auto_now=True)
 
