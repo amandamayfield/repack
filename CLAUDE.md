@@ -18,8 +18,8 @@ Judge user-facing changes against three fixed personas. Each file has the full p
 
 - The persona files are in `.claude/skills/persona-audit/personas/`. Treat them as the source of truth; this table is only a summary.
 - **When designing or reviewing a UI or flow change,** say which personas it affects and how. When a change fixes or touches a finding from the latest audit, say so.
-- **The `/persona-audit` skill re-runs the audit.** Pass persona names to run a subset (e.g. `/persona-audit harold`), plus any free text to focus on one area. It saves a dated report to `user-audits/YYYY-MM-DD.md` and marks each earlier finding as fixed, still open, or worse. Suggest running it after a user-facing change lands.
-- **The baseline is `initial-user-audit.md`** (2026-11-14). The newest file in `user-audits/` replaces it once that folder exists. Its top fixes:
+- **The `/persona-audit` skill re-runs the audit.** Pass persona names to run a subset (e.g. `/persona-audit harold`), plus any free text to focus on one area. It saves a dated report to `.claude/user-audits/YYYY-MM-DD.md` and marks each earlier finding as fixed, still open, or worse. Suggest running it after a user-facing change lands.
+- **The baseline is `.claude/initial-user-audit.md`** (2026-11-14). The newest file in `.claude/user-audits/` replaces it once that folder exists. Its top fixes:
   1. Duplicate a trip / save a trip as a list.
   2. Re-sync a trip from an edited list, and handle duplicate items on import (today each list can be imported only once, and same-name items are copied twice).
   3. Unpack all / hide packed.
@@ -108,6 +108,7 @@ Custom action:
 
 ## Conventions & gotchas
 
+- **AI-generated files live in `.claude/`:** audits (`.claude/initial-user-audit.md`, `.claude/user-audits/`), design docs (`.claude/specs/`), plans (`.claude/plans/`). This overrides any skill's default location, such as `docs/superpowers/`. `CLAUDE.md` stays at the repo root.
 - **Commits:** one line in the form `feat|fix|test: short description`, with **no `Co-Authored-By` or other trailers**. Don't commit unless asked.
 - **Formatting:**
   - Backend uses ruff (`backend/pyproject.toml`): tabs, line length 120, import sorting, RUF012 ignored for Django's list class attributes, migrations excluded.
