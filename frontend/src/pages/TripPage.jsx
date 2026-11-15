@@ -26,9 +26,10 @@ export default function TripPage() {
 
 function TripDetail({ trip, categories, reload }) {
   const navigate = useNavigate();
-  const { confirm, alert, dialog } = useDialog();
+  const { confirm, alert, prompt, dialog } = useDialog();
   const [editingTrip, setEditingTrip] = useState(false);
   const [actionError, setActionError] = useState(null);
+  const [savedList, setSavedList] = useState(null); // { id, name } after "Save as list"
 
   // Local optimistic mirror of the fetched items. Sync during render (not in an
   // effect) whenever a fresh trip arrives — the documented pattern for adjusting
@@ -76,6 +77,42 @@ function TripDetail({ trip, categories, reload }) {
       reload();
     } catch {
       setActionError(`Couldn't delete "${item.name}". Try again.`);
+    }
+  }
+
+  async function handleDuplicate() {
+    setActionError(null);
+    try {
+      const copy = await api(`/trips/${trip.id}/duplicate/`, {
+        method: "POST",
+      });
+      navigate(`/trips/${copy.id}`);
+    } catch {
+      setActionError("Couldn't duplicate this trip. Try again.");
+    }
+  }
+
+  async function handleSaveAsList() {
+    const name = await prompt({
+      title: "Save as a list",
+      message:
+        "Make a saved list from this trip's items, to reuse on future trips.",
+      label: "List name",
+      initialValue: trip.name,
+      confirmLabel: "Save list",
+    });
+    if (name === null) return;
+    setActionError(null);
+    setSavedList(null);
+    try {
+      setSavedList(
+        await api(`/trips/${trip.id}/save-as-list/`, {
+          method: "POST",
+          body: { name },
+        }),
+      );
+    } catch {
+      setActionError("Couldn't save this trip as a list. Try again.");
     }
   }
 
@@ -134,6 +171,20 @@ function TripDetail({ trip, categories, reload }) {
               <button
                 type="button"
                 className="button button--ghost button--small"
+                onClick={handleDuplicate}
+              >
+                Duplicate trip
+              </button>
+              <button
+                type="button"
+                className="button button--ghost button--small"
+                onClick={handleSaveAsList}
+              >
+                Save as list
+              </button>
+              <button
+                type="button"
+                className="button button--ghost button--small"
                 onClick={() => setEditingTrip(true)}
               >
                 Edit trip
@@ -148,6 +199,13 @@ function TripDetail({ trip, categories, reload }) {
             </div>
           </div>
         </header>
+      )}
+
+      {savedList && (
+        <p role="status" className="form-note">
+          Saved as a list:{" "}
+          <Link to={`/lists/${savedList.id}`}>{savedList.name}</Link>
+        </p>
       )}
 
       {actionError && (

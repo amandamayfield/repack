@@ -123,6 +123,43 @@ class TripViewSet(OwnedModelViewSet):
 			)
 		return Response(status=status.HTTP_201_CREATED)
 
+	@action(detail=True, methods=["post"])
+	def duplicate(self, request, pk=None):
+		trip = self.get_object()
+		with transaction.atomic():
+			copy = Trip.objects.create(user=request.user, name=f"Copy of {trip.name}"[:150])
+			copy.imported_lists.set(trip.imported_lists.all())
+			# The copy starts unpacked: it's a fresh trip, not a snapshot.
+			TripItem.objects.bulk_create(
+				[
+					TripItem(trip=copy, category_id=i.category_id, name=i.name, quantity=i.quantity, order=i.order)
+					for i in trip.items.all()
+				]
+			)
+		return Response(TripDetailSerializer(copy, context={"request": request}).data, status=status.HTTP_201_CREATED)
+
+	@action(detail=True, methods=["post"], url_path="save-as-list")
+	def save_as_list(self, request, pk=None):
+		trip = self.get_object()
+		name = str(request.data.get("name", "")).strip()
+		if not name:
+			return Response({"name": ["This field may not be blank."]}, status=status.HTTP_400_BAD_REQUEST)
+		with transaction.atomic():
+			saved_list = SavedList.objects.create(user=request.user, name=name[:150])
+			SavedListItem.objects.bulk_create(
+				[
+					SavedListItem(
+						saved_list=saved_list,
+						category_id=i.category_id,
+						name=i.name,
+						quantity=i.quantity,
+						order=i.order,
+					)
+					for i in trip.items.all()
+				]
+			)
+		return Response({"id": saved_list.id, "name": saved_list.name}, status=status.HTTP_201_CREATED)
+
 
 class TripItemViewSet(viewsets.ModelViewSet):
 	permission_classes = [IsAuthenticated]

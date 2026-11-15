@@ -357,3 +357,69 @@ test("a fully packed trip shows the All packed stamp", async () => {
   expect(ring).toHaveClass("progress-ring--complete");
   expect(ring).toHaveTextContent("All packed");
 });
+
+test("duplicate trip posts and opens the copy", async () => {
+  baseMock({
+    handler: (path) =>
+      path === "/trips/5/duplicate/"
+        ? Promise.resolve({ id: 6, name: "Copy of Yosemite" })
+        : undefined,
+  });
+  renderTrip();
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Duplicate trip" }),
+  );
+
+  expect(api).toHaveBeenCalledWith("/trips/5/duplicate/", { method: "POST" });
+  // Navigated to the copy, which loads its own trip.
+  await waitFor(() => expect(api).toHaveBeenCalledWith("/trips/6/"));
+});
+
+test("save as list asks for a name and links to the new list", async () => {
+  baseMock({
+    handler: (path) =>
+      path === "/trips/5/save-as-list/"
+        ? Promise.resolve({ id: 77, name: "Park kit" })
+        : undefined,
+  });
+  renderTrip();
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Save as list" }),
+  );
+  const dialog = await screen.findByRole("dialog", { name: "Save as a list" });
+  const input = within(dialog).getByRole("textbox", { name: "List name" });
+  expect(input).toHaveValue("Yosemite");
+  await userEvent.clear(input);
+  await userEvent.type(input, "Park kit");
+  await userEvent.click(
+    within(dialog).getByRole("button", { name: "Save list" }),
+  );
+
+  expect(api).toHaveBeenCalledWith("/trips/5/save-as-list/", {
+    method: "POST",
+    body: { name: "Park kit" },
+  });
+  expect(await screen.findByText(/Saved as a list/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Park kit" })).toHaveAttribute(
+    "href",
+    "/lists/77",
+  );
+});
+
+test("cancelling save as list sends nothing", async () => {
+  baseMock();
+  renderTrip();
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Save as list" }),
+  );
+  const dialog = await screen.findByRole("dialog", { name: "Save as a list" });
+  await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+  );
+  expect(api).not.toHaveBeenCalledWith(
+    "/trips/5/save-as-list/",
+    expect.anything(),
+  );
+});

@@ -307,6 +307,13 @@ select:focus-visible {
   font-weight: 700;
 }
 
+.form-note {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
 /* ---------- Buttons ---------- */
 
 .button,
@@ -726,6 +733,10 @@ label.item-row__label {
 .dialog__message {
   margin-top: var(--space-2);
   color: var(--ink-muted);
+}
+
+.dialog__field {
+  margin-top: var(--space-4);
 }
 
 .dialog__actions {

@@ -1,10 +1,11 @@
 import { useCallback, useState } from "react";
 import Dialog from "../components/Dialog";
 
-// Promise-based, in-app replacement for window.confirm / window.alert:
+// Promise-based, in-app replacement for window.confirm / alert / prompt:
 //
-//   const { confirm, alert, dialog } = useDialog();
+//   const { confirm, alert, prompt, dialog } = useDialog();
 //   if (!(await confirm({ title: "Delete trip?", message: "..." }))) return;
+//   const name = await prompt({ title: "Name it", label: "Name" }); // null on cancel
 //   ...
 //   return <>{dialog}...</>;
 export function useDialog() {
@@ -22,6 +23,16 @@ export function useDialog() {
     (options) => open({ confirmLabel: "OK", ...options, kind: "alert" }),
     [open],
   );
+  const prompt = useCallback(
+    (options) =>
+      open({
+        confirmLabel: "Save",
+        initialValue: "",
+        ...options,
+        kind: "prompt",
+      }),
+    [open],
+  );
 
   function settle(result) {
     request.resolve(result);
@@ -31,10 +42,12 @@ export function useDialog() {
   const dialog = request && (
     <Dialog
       {...request.options}
-      onConfirm={() => settle(true)}
-      onCancel={() => settle(false)}
+      onConfirm={(value) =>
+        settle(request.options.kind === "prompt" ? value : true)
+      }
+      onCancel={() => settle(request.options.kind === "prompt" ? null : false)}
     />
   );
 
-  return { confirm, alert, dialog };
+  return { confirm, alert, prompt, dialog };
 }
