@@ -2,6 +2,8 @@ import pytest
 from django.contrib.auth.models import User
 from rest_framework.test import APIClient
 
+from api.validators import COMMON_PASSWORD_MESSAGE
+
 
 @pytest.mark.django_db
 def test_register_then_login_then_me():
@@ -66,3 +68,11 @@ def test_missing_csrf_token_is_403_not_401():
 	assert c.post("/api/auth/login/", {"username": "amanda", "password": "pw12345!"}, format="json").status_code == 200
 	assert c.post("/api/auth/logout/").status_code == 403
 	assert c.get("/api/auth/me/").status_code == 200  # still logged in
+
+
+@pytest.mark.django_db
+def test_register_explains_common_password():
+	c = APIClient()
+	r = c.post("/api/auth/register/", {"username": "amanda", "password": "password123"}, format="json")
+	assert r.status_code == 400
+	assert r.data["password"] == [COMMON_PASSWORD_MESSAGE]
