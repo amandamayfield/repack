@@ -11,6 +11,7 @@ from .serializers import (
 	CategorySerializer,
 	SavedListItemSerializer,
 	SavedListSerializer,
+	SavedListSummarySerializer,
 	TripDetailSerializer,
 	TripItemSerializer,
 	TripListSerializer,
@@ -43,7 +44,16 @@ class CategoryViewSet(OwnedModelViewSet):
 
 class SavedListViewSet(OwnedModelViewSet):
 	queryset = SavedList.objects.all()
-	serializer_class = SavedListSerializer
+
+	def get_serializer_class(self):
+		# Same split as trips: names for the list, embedded items for one list.
+		return SavedListSummarySerializer if self.action == "list" else SavedListSerializer
+
+	def get_queryset(self):
+		qs = super().get_queryset()
+		if self.action != "list":
+			qs = qs.prefetch_related("items")
+		return qs
 
 
 class SavedListItemViewSet(viewsets.ModelViewSet):

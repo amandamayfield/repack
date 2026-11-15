@@ -6,7 +6,10 @@ import ListsPage from "./ListsPage";
 import { AuthProvider } from "../auth/AuthProvider";
 import { api } from "../api/client";
 
-vi.mock("../api/client", () => ({ api: vi.fn() }));
+vi.mock("../api/client", () => ({
+  api: vi.fn(),
+  setUnauthorizedHandler: vi.fn(),
+}));
 
 function renderPage() {
   return render(

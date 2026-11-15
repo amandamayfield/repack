@@ -1,17 +1,4 @@
 import pytest
-from django.contrib.auth.models import User
-from rest_framework.test import APIClient
-
-
-@pytest.fixture
-def client_for():
-	def _make(username):
-		u = User.objects.create_user(username=username, password="pw12345!")
-		c = APIClient()
-		c.force_authenticate(u)
-		return c, u
-
-	return _make
 
 
 @pytest.mark.django_db

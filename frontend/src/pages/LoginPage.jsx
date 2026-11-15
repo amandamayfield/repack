@@ -2,12 +2,17 @@ import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../auth/authContext";
 
-// api() throws Error(String(status)) on a non-2xx response. For both login and
-// register the interesting failure is 400 (bad credentials / username taken).
+// api() throws an ApiError. A 400 on login means bad credentials; on register
+// the server explains what's wrong (username taken, password too short, ...).
 function messageForError(err, mode) {
-  if (err?.message === "400") {
-    return mode === "login"
-      ? "Incorrect username or password."
+  if (err?.status === 429) {
+    return "Too many attempts. Please wait a minute and try again.";
+  }
+  if (err?.status === 400) {
+    if (mode === "login") return "Incorrect username or password.";
+    const messages = err.messages?.() ?? [];
+    return messages.length > 0
+      ? messages.join(" ")
       : "That username is taken, or the details are invalid.";
   }
   return "Something went wrong. Please try again.";

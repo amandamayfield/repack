@@ -1,11 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
-import { useAuth } from "../auth/authContext";
 import { useFetch } from "../hooks/useFetch";
 
 export default function ListsPage() {
-  const { handle403 } = useAuth();
   const { data: lists, loading, error, reload } = useFetch("/saved-lists/");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -25,9 +23,8 @@ export default function ListsPage() {
       setName("");
       setDescription("");
       reload();
-    } catch (err) {
-      if (!handle403(err))
-        setFormError("Could not create the list. Please try again.");
+    } catch {
+      setFormError("Could not create the list. Please try again.");
     } finally {
       setPending(false);
     }
@@ -38,9 +35,8 @@ export default function ListsPage() {
     try {
       await api(`/saved-lists/${list.id}/`, { method: "DELETE" });
       reload();
-    } catch (err) {
-      if (!handle403(err))
-        setFormError("Could not delete the list. Please try again.");
+    } catch {
+      setFormError("Could not delete the list. Please try again.");
     }
   }
 

@@ -33,6 +33,14 @@ class SavedListItemSerializer(OwnedCategoryMixin, serializers.ModelSerializer):
 		return value
 
 
+class SavedListSummarySerializer(serializers.ModelSerializer):
+	"""For the list endpoint: pages and pickers only need names, not every item."""
+
+	class Meta:
+		model = SavedList
+		fields = ["id", "name", "description", "created_at", "updated_at"]
+
+
 class SavedListSerializer(serializers.ModelSerializer):
 	items = SavedListItemSerializer(many=True, read_only=True)
 

@@ -1,12 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
-import { useAuth } from "../auth/authContext";
 import { useFetch } from "../hooks/useFetch";
 import ProgressBar from "../components/ProgressBar";
 
 export default function TripsPage() {
-  const { handle403 } = useAuth();
   const { data: trips, loading, error, reload } = useFetch("/trips/");
   const [name, setName] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -29,9 +27,8 @@ export default function TripsPage() {
       setStartDate("");
       setEndDate("");
       reload();
-    } catch (err) {
-      if (!handle403(err))
-        setFormError("Could not create the trip. Please try again.");
+    } catch {
+      setFormError("Could not create the trip. Please try again.");
     } finally {
       setPending(false);
     }

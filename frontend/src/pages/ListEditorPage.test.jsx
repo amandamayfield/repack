@@ -6,7 +6,10 @@ import ListEditorPage from "./ListEditorPage";
 import { AuthProvider } from "../auth/AuthProvider";
 import { api } from "../api/client";
 
-vi.mock("../api/client", () => ({ api: vi.fn() }));
+vi.mock("../api/client", () => ({
+  api: vi.fn(),
+  setUnauthorizedHandler: vi.fn(),
+}));
 
 const LIST = {
   id: 3,
@@ -84,6 +87,8 @@ test("adding an item posts with saved_list (server assigns order), then refetche
     screen.getByLabelText("Item name", { selector: "#add-name" }),
     "Boots",
   );
+  // Categories load in a separate request; wait for the option to exist.
+  await screen.findAllByRole("option", { name: "Clothes" });
   await userEvent.selectOptions(
     screen.getByLabelText("Category (optional)", { selector: "#add-category" }),
     "10",

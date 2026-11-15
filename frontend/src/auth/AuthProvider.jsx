@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api } from "../api/client";
+import { api, setUnauthorizedHandler } from "../api/client";
 import { AuthContext } from "./authContext";
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Any 401 from any request means the session ended: drop the user, and
+  // RequireAuth sends them to /login.
+  useEffect(() => {
+    setUnauthorizedHandler(() => setUser(null));
+    return () => setUnauthorizedHandler(null);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -45,17 +52,9 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const handle403 = useCallback((err) => {
-    if (err?.message === "403") {
-      setUser(null);
-      return true;
-    }
-    return false;
-  }, []);
-
   const value = useMemo(
-    () => ({ user, loading, login, register, logout, handle403 }),
-    [user, loading, login, register, logout, handle403],
+    () => ({ user, loading, login, register, logout }),
+    [user, loading, login, register, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

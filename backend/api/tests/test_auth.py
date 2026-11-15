@@ -1,4 +1,5 @@
 import pytest
+from django.contrib.auth.models import User
 from rest_framework.test import APIClient
 
 
@@ -20,7 +21,7 @@ def test_register_then_login_then_me():
 @pytest.mark.django_db
 def test_me_requires_auth():
 	c = APIClient()
-	assert c.get("/api/auth/me/").status_code == 403
+	assert c.get("/api/auth/me/").status_code == 401
 
 
 @pytest.mark.django_db
@@ -29,7 +30,7 @@ def test_logout_clears_session():
 	c.post("/api/auth/register/", {"username": "amanda", "password": "pw12345!"}, format="json")
 	c.post("/api/auth/login/", {"username": "amanda", "password": "pw12345!"}, format="json")
 	assert c.post("/api/auth/logout/").status_code == 204
-	assert c.get("/api/auth/me/").status_code == 403
+	assert c.get("/api/auth/me/").status_code == 401
 
 
 @pytest.mark.django_db
@@ -54,3 +55,14 @@ def test_login_is_rate_limited():
 	for _ in range(10):
 		assert c.post("/api/auth/login/", {"username": "x", "password": "wrong"}, format="json").status_code == 400
 	assert c.post("/api/auth/login/", {"username": "x", "password": "wrong"}, format="json").status_code == 429
+
+
+@pytest.mark.django_db
+def test_missing_csrf_token_is_403_not_401():
+	# CSRF failures must stay distinguishable from "not logged in" (401), or the
+	# frontend would log the user out on a CSRF bug.
+	User.objects.create_user("amanda", password="pw12345!")
+	c = APIClient(enforce_csrf_checks=True)
+	assert c.post("/api/auth/login/", {"username": "amanda", "password": "pw12345!"}, format="json").status_code == 200
+	assert c.post("/api/auth/logout/").status_code == 403
+	assert c.get("/api/auth/me/").status_code == 200  # still logged in

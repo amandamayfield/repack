@@ -1,14 +1,4 @@
 import pytest
-from django.contrib.auth.models import User
-from rest_framework.test import APIClient
-
-
-@pytest.fixture
-def auth_client():
-	u = User.objects.create_user(username="amanda", password="pw12345!")
-	c = APIClient()
-	c.force_authenticate(u)
-	return c, u
 
 
 def _seed_list(c):
@@ -50,14 +40,13 @@ def test_import_decouples_from_blueprint(auth_client):
 
 
 @pytest.mark.django_db
-def test_cannot_import_others_list(auth_client):
+def test_cannot_import_others_list(auth_client, other_client):
 	c, _ = auth_client
 	trip = c.post("/api/trips/", {"name": "Yosemite"}, format="json").data
-	adam = APIClient()
-	adam.force_authenticate(User.objects.create_user("adam", password="pw12345!"))
+	adam = other_client
 	adam_list = adam.post("/api/saved-lists/", {"name": "Adam"}, format="json").data
 	r = c.post(f"/api/trips/{trip['id']}/import-list/", {"saved_list_id": adam_list["id"]}, format="json")
-	assert r.status_code in (400, 404)
+	assert r.status_code == 404
 
 
 @pytest.mark.django_db

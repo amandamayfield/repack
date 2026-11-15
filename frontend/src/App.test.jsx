@@ -4,8 +4,12 @@ import { beforeEach, expect, test, vi } from "vitest";
 import App from "./App";
 import { AuthProvider } from "./auth/AuthProvider";
 import { api } from "./api/client";
+import { ApiError } from "./api/ApiError";
 
-vi.mock("./api/client", () => ({ api: vi.fn() }));
+vi.mock("./api/client", () => ({
+  api: vi.fn(),
+  setUnauthorizedHandler: vi.fn(),
+}));
 
 function renderAt(path) {
   return render(
@@ -22,7 +26,7 @@ beforeEach(() => {
 });
 
 test("anonymous users hitting a protected route are redirected to login", async () => {
-  api.mockRejectedValue(new Error("403"));
+  api.mockRejectedValue(new ApiError(401));
 
   renderAt("/trips");
 

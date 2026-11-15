@@ -1,14 +1,4 @@
 import pytest
-from django.contrib.auth.models import User
-from rest_framework.test import APIClient
-
-
-@pytest.fixture
-def auth_client():
-	u = User.objects.create_user(username="ann", password="pw12345!")
-	c = APIClient()
-	c.force_authenticate(u)
-	return c, u
 
 
 @pytest.mark.django_db
@@ -37,21 +27,19 @@ def test_trip_list_includes_progress_counts(auth_client):
 
 
 @pytest.mark.django_db
-def test_trip_isolation(auth_client):
+def test_trip_isolation(auth_client, other_client):
 	c, _ = auth_client
 	trip = c.post("/api/trips/", {"name": "Beach"}, format="json").data
-	adam = APIClient()
-	adam.force_authenticate(User.objects.create_user("adam", password="pw12345!"))
+	adam = other_client
 	assert adam.get(f"/api/trips/{trip['id']}/").status_code == 404
 
 
 @pytest.mark.django_db
-def test_trip_item_rejects_others_category(auth_client):
+def test_trip_item_rejects_others_category(auth_client, other_client):
 	c, _ = auth_client
 	trip = c.post("/api/trips/", {"name": "Beach"}, format="json").data
 	item = c.post("/api/trip-items/", {"trip": trip["id"], "name": "Towel", "order": 0}, format="json").data
-	adam = APIClient()
-	adam.force_authenticate(User.objects.create_user("adam", password="pw12345!"))
+	adam = other_client
 	adam_cat = adam.post("/api/categories/", {"name": "Adam Cat", "order": 0}, format="json").data
 	# Both on create and when re-pointing an existing item via PATCH.
 	r = c.post(
@@ -83,3 +71,25 @@ def test_trip_dates_round_trip_and_days_is_gone(auth_client):
 	row = c.get("/api/trips/").data[0]
 	assert (row["start_date"], row["end_date"]) == ("2026-07-01", "2026-07-03")
 	assert "days" not in row
+
+
+@pytest.mark.django_db
+def test_cannot_touch_others_trip_items_or_move_items_onto_their_trip(auth_client, other_client):
+	c, _ = auth_client
+	trip = c.post("/api/trips/", {"name": "Beach"}, format="json").data
+	item = c.post("/api/trip-items/", {"trip": trip["id"], "name": "Towel"}, format="json").data
+	adam_trip = other_client.post("/api/trips/", {"name": "Adam"}, format="json").data
+	assert other_client.patch(f"/api/trip-items/{item['id']}/", {"packed": True}, format="json").status_code == 404
+	assert other_client.delete(f"/api/trip-items/{item['id']}/").status_code == 404
+	r = c.patch(f"/api/trip-items/{item['id']}/", {"trip": adam_trip["id"]}, format="json")
+	assert r.status_code == 400
+
+
+@pytest.mark.django_db
+def test_delete_own_trip_removes_its_items(auth_client, other_client):
+	c, _ = auth_client
+	trip = c.post("/api/trips/", {"name": "Beach"}, format="json").data
+	c.post("/api/trip-items/", {"trip": trip["id"], "name": "Towel"}, format="json")
+	assert other_client.delete(f"/api/trips/{trip['id']}/").status_code == 404
+	assert c.delete(f"/api/trips/{trip['id']}/").status_code == 204
+	assert c.get("/api/trip-items/").data == []

@@ -5,8 +5,12 @@ import { beforeEach, expect, test, vi } from "vitest";
 import LoginPage from "./LoginPage";
 import { AuthProvider } from "../auth/AuthProvider";
 import { api } from "../api/client";
+import { ApiError } from "../api/ApiError";
 
-vi.mock("../api/client", () => ({ api: vi.fn() }));
+vi.mock("../api/client", () => ({
+  api: vi.fn(),
+  setUnauthorizedHandler: vi.fn(),
+}));
 
 function renderLogin() {
   return render(
@@ -24,12 +28,12 @@ function renderLogin() {
 beforeEach(() => {
   api.mockReset();
   // Default: no session on mount so the form renders.
-  api.mockRejectedValue(new Error("403"));
+  api.mockRejectedValue(new ApiError(401));
 });
 
 test("successful login authenticates and redirects to /trips", async () => {
   api.mockImplementation((path) => {
-    if (path === "/auth/me/") return Promise.reject(new Error("403"));
+    if (path === "/auth/me/") return Promise.reject(new ApiError(401));
     if (path === "/auth/login/")
       return Promise.resolve({ id: 1, username: "amanda" });
     return Promise.resolve(null);
@@ -53,8 +57,8 @@ test("successful login authenticates and redirects to /trips", async () => {
 
 test("a 400 from login shows an inline error and stays on the form", async () => {
   api.mockImplementation((path) => {
-    if (path === "/auth/me/") return Promise.reject(new Error("403"));
-    if (path === "/auth/login/") return Promise.reject(new Error("400"));
+    if (path === "/auth/me/") return Promise.reject(new ApiError(401));
+    if (path === "/auth/login/") return Promise.reject(new ApiError(400));
     return Promise.resolve(null);
   });
 
@@ -73,7 +77,7 @@ test("a 400 from login shows an inline error and stays on the form", async () =>
 
 test("toggling to register mode switches the heading and calls register", async () => {
   api.mockImplementation((path) => {
-    if (path === "/auth/me/") return Promise.reject(new Error("403"));
+    if (path === "/auth/me/") return Promise.reject(new ApiError(401));
     if (path === "/auth/register/")
       return Promise.resolve({ id: 2, username: "newbie" });
     if (path === "/auth/login/")
@@ -98,5 +102,45 @@ test("toggling to register mode switches the heading and calls register", async 
       method: "POST",
       body: { username: "newbie", password: "pw12345!" },
     }),
+  );
+});
+
+test("a failed register shows the server's reasons", async () => {
+  api.mockImplementation((path) => {
+    if (path === "/auth/me/") return Promise.reject(new ApiError(401));
+    if (path === "/auth/register/")
+      return Promise.reject(
+        new ApiError(400, { password: ["This password is too short."] }),
+      );
+    return Promise.resolve(null);
+  });
+
+  renderLogin();
+  await screen.findByRole("heading", { name: "Sign in" });
+  await userEvent.click(screen.getByRole("button", { name: "Create one" }));
+  await userEvent.type(screen.getByLabelText("Username"), "newbie");
+  await userEvent.type(screen.getByLabelText("Password"), "a");
+  await userEvent.click(screen.getByRole("button", { name: "Create account" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "This password is too short.",
+  );
+});
+
+test("being rate limited says so", async () => {
+  api.mockImplementation((path) => {
+    if (path === "/auth/me/") return Promise.reject(new ApiError(401));
+    if (path === "/auth/login/") return Promise.reject(new ApiError(429));
+    return Promise.resolve(null);
+  });
+
+  renderLogin();
+  await screen.findByRole("heading", { name: "Sign in" });
+  await userEvent.type(screen.getByLabelText("Username"), "amanda");
+  await userEvent.type(screen.getByLabelText("Password"), "wrong");
+  await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Too many attempts",
   );
 });

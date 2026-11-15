@@ -5,8 +5,12 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import TripPage from "./TripPage";
 import { AuthProvider } from "../auth/AuthProvider";
 import { api } from "../api/client";
+import { ApiError } from "../api/ApiError";
 
-vi.mock("../api/client", () => ({ api: vi.fn() }));
+vi.mock("../api/client", () => ({
+  api: vi.fn(),
+  setUnauthorizedHandler: vi.fn(),
+}));
 
 const TRIP = {
   id: 5,
@@ -105,7 +109,7 @@ test("a failed toggle reverts the checkbox and shows an error", async () => {
   baseMock({
     handler: (path, opts) =>
       path === "/trip-items/1/" && opts?.method === "PATCH"
-        ? Promise.reject(new Error("500"))
+        ? Promise.reject(new ApiError(500))
         : undefined,
   });
   renderTrip();
@@ -136,6 +140,8 @@ test("importing a saved list posts to /import-list/ with the chosen id", async (
   const importForm = screen
     .getByRole("heading", { name: "Import a saved list" })
     .closest("form");
+  // The dropdown fills from a separate /saved-lists/ request; wait for it.
+  await within(importForm).findAllByRole("option", { name: "Camping" });
   await userEvent.selectOptions(
     within(importForm).getByLabelText("Saved list"),
     "99",
@@ -161,6 +167,8 @@ test("choosing a list that was already imported shows a popup and doesn't re-imp
   const importForm = screen
     .getByRole("heading", { name: "Import a saved list" })
     .closest("form");
+  // The dropdown fills from a separate /saved-lists/ request; wait for it.
+  await within(importForm).findAllByRole("option", { name: "Camping" });
   await userEvent.selectOptions(
     within(importForm).getByLabelText("Saved list"),
     "99",
@@ -183,7 +191,7 @@ test("a 409 from the server (imported elsewhere) also shows the popup", async ()
   baseMock({
     handler: (path, opts) =>
       path === "/trips/5/import-list/" && opts?.method === "POST"
-        ? Promise.reject(new Error("409"))
+        ? Promise.reject(new ApiError(409))
         : undefined,
   });
   renderTrip();
@@ -192,6 +200,8 @@ test("a 409 from the server (imported elsewhere) also shows the popup", async ()
   const importForm = screen
     .getByRole("heading", { name: "Import a saved list" })
     .closest("form");
+  // The dropdown fills from a separate /saved-lists/ request; wait for it.
+  await within(importForm).findAllByRole("option", { name: "Camping" });
   await userEvent.selectOptions(
     within(importForm).getByLabelText("Saved list"),
     "98",
@@ -206,4 +216,36 @@ test("a 409 from the server (imported elsewhere) also shows the popup", async ()
     ),
   );
   expect(screen.queryByText(/Could not import/)).not.toBeInTheDocument();
+});
+
+test("adding an ad-hoc item can set its category", async () => {
+  baseMock({
+    handler: (path, opts) =>
+      path === "/trip-items/" && opts?.method === "POST"
+        ? Promise.resolve({ id: 9 })
+        : undefined,
+  });
+  renderTrip();
+  await screen.findByRole("progressbar", { name: "Yosemite packing progress" });
+
+  await userEvent.type(
+    screen.getByLabelText("Item name", { selector: "#trip-add-name" }),
+    "Hat",
+  );
+  // Categories load in a separate request; wait for the option to exist.
+  await screen.findAllByRole("option", { name: "Clothes" });
+  await userEvent.selectOptions(
+    screen.getByLabelText("Category (optional)", {
+      selector: "#trip-add-category",
+    }),
+    "10",
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Add item" }));
+
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith("/trip-items/", {
+      method: "POST",
+      body: { trip: 5, name: "Hat", quantity: null, category: 10 },
+    }),
+  );
 });

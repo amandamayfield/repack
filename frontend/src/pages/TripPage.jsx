@@ -1,15 +1,14 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../api/client";
-import { useAuth } from "../auth/authContext";
 import { useFetch } from "../hooks/useFetch";
 import { computeProgress, groupByCategory } from "../lib/grouping";
 import ProgressBar from "../components/ProgressBar";
 import ItemRow from "../components/ItemRow";
+import ItemForm from "../components/ItemForm";
 
 export default function TripPage() {
   const { id } = useParams();
-  const { handle403 } = useAuth();
   const { data: trip, loading, error, reload } = useFetch(`/trips/${id}/`);
   const { data: categories } = useFetch("/categories/");
 
@@ -18,16 +17,11 @@ export default function TripPage() {
   if (!trip) return null;
 
   return (
-    <TripDetail
-      trip={trip}
-      categories={categories ?? []}
-      reload={reload}
-      handle403={handle403}
-    />
+    <TripDetail trip={trip} categories={categories ?? []} reload={reload} />
   );
 }
 
-function TripDetail({ trip, categories, reload, handle403 }) {
+function TripDetail({ trip, categories, reload }) {
   // Local optimistic mirror of the fetched items. Sync during render (not in an
   // effect) whenever a fresh trip arrives — the documented pattern for adjusting
   // state when a prop changes, and it keeps toggles instant without a refetch.
@@ -54,13 +48,12 @@ function TripDetail({ trip, categories, reload, handle403 }) {
         method: "PATCH",
         body: { packed },
       });
-    } catch (err) {
+    } catch {
       // Revert on failure so the checkbox never lies about server state.
       setItems((prev) =>
         prev.map((it) => (it.id === item.id ? { ...it, packed: !packed } : it)),
       );
-      if (!handle403(err))
-        setToggleError("Could not update that item. Please try again.");
+      setToggleError("Could not update that item. Please try again.");
     }
   }
 
@@ -111,80 +104,31 @@ function TripDetail({ trip, categories, reload, handle403 }) {
         })
       )}
 
-      <AddItemForm tripId={trip.id} reload={reload} handle403={handle403} />
+      <section className="add-item-form">
+        <h2>Add an item</h2>
+        <ItemForm
+          categories={categories}
+          onSubmit={async (body) => {
+            await api("/trip-items/", {
+              method: "POST",
+              body: { trip: trip.id, ...body },
+            });
+            reload();
+          }}
+          submitLabel="Add item"
+          idPrefix="trip-add"
+        />
+      </section>
       <ImportListForm
         tripId={trip.id}
         importedListIds={trip.imported_lists ?? []}
         reload={reload}
-        handle403={handle403}
       />
     </section>
   );
 }
 
-function AddItemForm({ tripId, reload, handle403 }) {
-  const [name, setName] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState(null);
-
-  async function handleSubmit(event) {
-    event.preventDefault();
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    setPending(true);
-    setError(null);
-    try {
-      const body = { trip: tripId, name: trimmed };
-      if (quantity !== "") body.quantity = Number(quantity);
-      await api("/trip-items/", { method: "POST", body });
-      setName("");
-      setQuantity("");
-      reload();
-    } catch (err) {
-      if (!handle403(err))
-        setError("Could not add the item. Please try again.");
-    } finally {
-      setPending(false);
-    }
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="add-item-form">
-      <h2>Add an item</h2>
-      <label htmlFor="item-name">Item name</label>
-      <input
-        id="item-name"
-        name="name"
-        type="text"
-        required
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        disabled={pending}
-      />
-      <label htmlFor="item-qty">Quantity (optional)</label>
-      <input
-        id="item-qty"
-        name="quantity"
-        type="number"
-        min="1"
-        value={quantity}
-        onChange={(e) => setQuantity(e.target.value)}
-        disabled={pending}
-      />
-      <button type="submit" disabled={pending || name.trim() === ""}>
-        {pending ? "Adding…" : "Add item"}
-      </button>
-      {error && (
-        <p role="alert" className="form-error">
-          {error}
-        </p>
-      )}
-    </form>
-  );
-}
-
-function ImportListForm({ tripId, importedListIds, reload, handle403 }) {
+function ImportListForm({ tripId, importedListIds, reload }) {
   const { data: lists } = useFetch("/saved-lists/");
   const [selected, setSelected] = useState("");
   const [pending, setPending] = useState(false);
@@ -207,7 +151,6 @@ function ImportListForm({ tripId, importedListIds, reload, handle403 }) {
     setPending(true);
     setError(null);
     try {
-      // NOTE: the real route is /import-list/ (AI-CONTEXT.md), not /import/.
       await api(`/trips/${tripId}/import-list/`, {
         method: "POST",
         body: { saved_list_id: listId },
@@ -215,12 +158,12 @@ function ImportListForm({ tripId, importedListIds, reload, handle403 }) {
       setSelected("");
       reload();
     } catch (err) {
-      if (err?.message === "409") {
+      if (err?.status === 409) {
         // Imported elsewhere (e.g. another tab) since this page loaded; resync.
         alertAlreadyImported(listId);
         setSelected("");
         reload();
-      } else if (!handle403(err)) {
+      } else {
         setError("Could not import that list. Please try again.");
       }
     } finally {

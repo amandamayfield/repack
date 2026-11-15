@@ -1,10 +1,10 @@
 import { useState } from "react";
 
-// Shared add/edit form for a saved-list (template) item. The parent injects
-// saved_list/order and decides POST vs PATCH; this form only owns the editable
-// fields (name, optional quantity, optional category). `onSubmit(body)` returns a
-// promise — the form manages its own pending/error state around it.
-export default function SavedListItemForm({
+// Shared add/edit form for an item on a saved list or a trip. The parent adds
+// the parent id (saved_list / trip) and decides POST vs PATCH; this form only
+// owns the editable fields (name, optional quantity, optional category).
+// `onSubmit(body)` returns a promise — the form manages pending/error around it.
+export default function ItemForm({
   initial = {},
   categories,
   onSubmit,
@@ -41,8 +41,7 @@ export default function SavedListItemForm({
         setCategory("");
       }
     } catch {
-      // The parent already handled 403s (it resolves instead of throwing), so
-      // anything that reaches here is a real save failure.
+      // A 401 is handled globally (redirect to login); anything else is shown here.
       setError("Could not save the item. Please try again.");
     } finally {
       setPending(false);

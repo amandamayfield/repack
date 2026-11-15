@@ -25,6 +25,9 @@ class SavedList(models.Model):
 	class Meta:
 		ordering = ["-updated_at"]
 
+	def __str__(self):
+		return self.name
+
 
 class SavedListItem(models.Model):
 	saved_list = models.ForeignKey(SavedList, on_delete=models.CASCADE, related_name="items")
@@ -35,6 +38,9 @@ class SavedListItem(models.Model):
 
 	class Meta:
 		ordering = ["order", "id"]
+
+	def __str__(self):
+		return self.name
 
 
 class Trip(models.Model):
@@ -50,6 +56,9 @@ class Trip(models.Model):
 	class Meta:
 		ordering = ["-updated_at"]
 
+	def __str__(self):
+		return self.name
+
 
 class TripItem(models.Model):
 	trip = models.ForeignKey(Trip, on_delete=models.CASCADE, related_name="items")
@@ -61,3 +70,6 @@ class TripItem(models.Model):
 
 	class Meta:
 		ordering = ["order", "id"]
+
+	def __str__(self):
+		return self.name

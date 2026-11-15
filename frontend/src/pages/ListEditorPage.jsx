@@ -1,14 +1,12 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
-import { useAuth } from "../auth/authContext";
 import { useFetch } from "../hooks/useFetch";
 import { groupByCategory } from "../lib/grouping";
-import SavedListItemForm from "../components/SavedListItemForm";
+import ItemForm from "../components/ItemForm";
 
 export default function ListEditorPage() {
   const { id } = useParams();
-  const { handle403 } = useAuth();
   const {
     data: list,
     loading,
@@ -21,17 +19,13 @@ export default function ListEditorPage() {
   if (error) return <p role="alert">Could not load this list.</p>;
   if (!list) return null;
 
+  // Errors propagate to ItemForm, which shows them.
   async function handleAdd(body) {
-    try {
-      await api("/saved-list-items/", {
-        method: "POST",
-        body: { saved_list: list.id, ...body },
-      });
-      reload();
-    } catch (err) {
-      if (handle403(err)) return; // redirecting to login; treat as resolved
-      throw err; // let the form surface a generic error
-    }
+    await api("/saved-list-items/", {
+      method: "POST",
+      body: { saved_list: list.id, ...body },
+    });
+    reload();
   }
 
   const groups = groupByCategory(list.items, categories ?? []);
@@ -59,7 +53,6 @@ export default function ListEditorPage() {
                   item={item}
                   categories={categories ?? []}
                   reload={reload}
-                  handle403={handle403}
                 />
               ))}
             </ul>
@@ -68,7 +61,7 @@ export default function ListEditorPage() {
       )}
 
       <h2>Add an item</h2>
-      <SavedListItemForm
+      <ItemForm
         categories={categories ?? []}
         onSubmit={handleAdd}
         submitLabel="Add item"
@@ -78,20 +71,15 @@ export default function ListEditorPage() {
   );
 }
 
-function EditableItemRow({ item, categories, reload, handle403 }) {
+function EditableItemRow({ item, categories, reload }) {
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState(null);
   const text = item.quantity ? `${item.name} (${item.quantity})` : item.name;
 
   async function handleEdit(body) {
-    try {
-      await api(`/saved-list-items/${item.id}/`, { method: "PATCH", body });
-      setEditing(false);
-      reload();
-    } catch (err) {
-      if (handle403(err)) return;
-      throw err; // surfaced by the form
-    }
+    await api(`/saved-list-items/${item.id}/`, { method: "PATCH", body });
+    setEditing(false);
+    reload();
   }
 
   async function handleDelete() {
@@ -100,16 +88,15 @@ function EditableItemRow({ item, categories, reload, handle403 }) {
     try {
       await api(`/saved-list-items/${item.id}/`, { method: "DELETE" });
       reload();
-    } catch (err) {
-      if (!handle403(err))
-        setError("Could not delete the item. Please try again.");
+    } catch {
+      setError("Could not delete the item. Please try again.");
     }
   }
 
   if (editing) {
     return (
       <li className="item-row item-row--editing">
-        <SavedListItemForm
+        <ItemForm
           initial={item}
           categories={categories}
           onSubmit={handleEdit}

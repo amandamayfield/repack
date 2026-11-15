@@ -1,14 +1,9 @@
+# Runtime dependencies. For tests and tooling: pip install -r requirements-dev.txt
 asgiref==3.11.1
 Django==5.2.15
 django-environ==0.14.0
 djangorestframework==3.17.1
-iniconfig==2.3.0
-packaging==26.2
-pluggy==1.6.0
-psycopg==3.3.4
-psycopg-binary==3.3.4
-Pygments==2.20.0
-pytest==9.1.1
-pytest-django==4.12.0
+gunicorn==27.0.1
+psycopg[binary]==3.3.4
 sqlparse==0.5.5
 whitenoise==6.12.0
