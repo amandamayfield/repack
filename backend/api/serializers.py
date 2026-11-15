@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import SavedList, SavedListItem, Trip, TripItem
+from .models import SavedList, SavedListItem, Trip, TripItem, TripSection
 
 
 class SavedListItemSerializer(serializers.ModelSerializer):
@@ -32,14 +32,67 @@ class SavedListSerializer(serializers.ModelSerializer):
 
 
 class TripItemSerializer(serializers.ModelSerializer):
+	is_synced = serializers.BooleanField(source="from_list", read_only=True)
+
 	class Meta:
 		model = TripItem
-		fields = ["id", "section", "name", "quantity", "packed", "order"]
+		fields = ["id", "section", "name", "quantity", "packed", "is_synced", "order"]
 
 	def validate_section(self, value):
 		if value.trip.user_id != self.context["request"].user.id:
 			raise serializers.ValidationError("Not your trip.")
 		return value
+
+
+class TripSectionSerializer(serializers.ModelSerializer):
+	# Written as the trip's own name for the section; read back as what the trip shows.
+	name = serializers.CharField(source="custom_name", required=False, allow_blank=True, max_length=150)
+	is_synced = serializers.SerializerMethodField()
+	items = serializers.SerializerMethodField()
+
+	class Meta:
+		model = TripSection
+		fields = ["id", "trip", "saved_list", "name", "is_synced", "order", "items"]
+		read_only_fields = ["order"]
+		# The trip/list uniqueness check is done in validate() with a friendlier message.
+		validators = []
+
+	def get_is_synced(self, section):
+		return section.saved_list_id is not None
+
+	def get_items(self, section):
+		# Filtered in Python so a prefetch of all items is reused.
+		live = [i for i in section.items.all() if not i.removed]
+		return TripItemSerializer(live, many=True, context=self.context).data
+
+	def to_representation(self, section):
+		data = super().to_representation(section)
+		data["name"] = section.display_name
+		return data
+
+	def validate_trip(self, value):
+		if value.user_id != self.context["request"].user.id:
+			raise serializers.ValidationError("Not your trip.")
+		return value
+
+	def validate_saved_list(self, value):
+		if value is not None and value.user_id != self.context["request"].user.id:
+			raise serializers.ValidationError("Not your list.")
+		return value
+
+	def validate(self, attrs):
+		if self.instance is not None:
+			for field in ("trip", "saved_list"):
+				if field in attrs and attrs[field] != getattr(self.instance, field):
+					raise serializers.ValidationError({field: "A section can't be moved."})
+		attrs["custom_name"] = attrs.get("custom_name", getattr(self.instance, "custom_name", "")).strip()
+		trip = attrs.get("trip", getattr(self.instance, "trip", None))
+		saved_list = attrs.get("saved_list", getattr(self.instance, "saved_list", None))
+		if saved_list is None and not attrs["custom_name"]:
+			raise serializers.ValidationError({"name": "A section needs a name."})
+		if self.instance is None and saved_list is not None and trip.sections.filter(saved_list=saved_list).exists():
+			raise serializers.ValidationError({"saved_list": "This list is already on this trip."})
+		return attrs
 
 
 class TripListSerializer(serializers.ModelSerializer):
@@ -52,9 +105,11 @@ class TripListSerializer(serializers.ModelSerializer):
 
 
 class TripDetailSerializer(serializers.ModelSerializer):
+	sections = TripSectionSerializer(many=True, read_only=True)
+
 	class Meta:
 		model = Trip
-		fields = ["id", "name", "start_date", "end_date", "created_at", "updated_at"]
+		fields = ["id", "name", "start_date", "end_date", "sections", "created_at", "updated_at"]
 
 	def validate(self, attrs):
 		# On PATCH only one date may be sent; compare against the stored other one.

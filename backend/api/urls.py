@@ -2,7 +2,7 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 
 from . import auth
-from .views import SavedListItemViewSet, SavedListViewSet, TripItemViewSet, TripViewSet
+from .views import SavedListItemViewSet, SavedListViewSet, TripItemViewSet, TripSectionViewSet, TripViewSet
 
 urlpatterns = [
 	path("auth/register/", auth.register),
@@ -16,6 +16,7 @@ router = DefaultRouter()
 router.register("saved-lists", SavedListViewSet, basename="savedlist")
 router.register("saved-list-items", SavedListItemViewSet, basename="savedlistitem")
 router.register("trips", TripViewSet, basename="trip")
+router.register("trip-sections", TripSectionViewSet, basename="tripsection")
 router.register("trip-items", TripItemViewSet, basename="tripitem")
 
 urlpatterns += router.urls

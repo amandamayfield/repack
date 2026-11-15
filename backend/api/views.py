@@ -1,10 +1,11 @@
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Max, Q
-from rest_framework import status, viewsets
+from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import SavedList, SavedListItem, Trip, TripItem
+from .models import SavedList, SavedListItem, Trip, TripItem, TripSection
 from .permissions import IsOwner
 from .serializers import (
 	SavedListItemSerializer,
@@ -13,6 +14,7 @@ from .serializers import (
 	TripDetailSerializer,
 	TripItemSerializer,
 	TripListSerializer,
+	TripSectionSerializer,
 )
 
 
@@ -78,13 +80,67 @@ class TripViewSet(OwnedModelViewSet):
 				total_count=Count("sections__items", filter=live),
 				packed_count=Count("sections__items", filter=live & Q(sections__items__packed=True)),
 			)
+		else:
+			qs = qs.prefetch_related("sections__saved_list", "sections__items")
 		return qs
+
+	@action(detail=True, methods=["post"], url_path="reorder-sections")
+	def reorder_sections(self, request, pk=None):
+		trip = self.get_object()
+		ids = request.data.get("section_ids")
+		sections = {s.id: s for s in trip.sections.all()}
+		# A partial or padded list would leave two sections sharing an order.
+		valid = isinstance(ids, list) and all(isinstance(i, int) for i in ids)
+		if not valid or len(ids) != len(sections) or set(ids) != set(sections):
+			return Response(
+				{"section_ids": ["Send every section of this trip, once each."]}, status=status.HTTP_400_BAD_REQUEST
+			)
+		for order, section_id in enumerate(ids):
+			sections[section_id].order = order
+		TripSection.objects.bulk_update(sections.values(), ["order"])
+		return Response(status=status.HTTP_200_OK)
 
 	@action(detail=True, methods=["post"])
 	def duplicate(self, request, pk=None):
 		trip = self.get_object()
 		copy = Trip.objects.create(user=request.user, name=f"Copy of {trip.name}"[:150])
 		return Response(TripDetailSerializer(copy, context={"request": request}).data, status=status.HTTP_201_CREATED)
+
+
+class TripSectionViewSet(viewsets.ModelViewSet):
+	permission_classes = [IsAuthenticated]
+	serializer_class = TripSectionSerializer
+
+	def get_queryset(self):
+		return (
+			TripSection.objects.filter(trip__user=self.request.user)
+			.select_related("saved_list")
+			.prefetch_related("items")
+		)
+
+	def perform_create(self, serializer):
+		trip = serializer.validated_data["trip"]
+		saved_list = serializer.validated_data.get("saved_list")
+		try:
+			with transaction.atomic():
+				section = serializer.save(order=next_order(trip.sections.all()))
+				if saved_list is not None:
+					TripItem.objects.bulk_create(
+						[
+							TripItem(
+								section=section,
+								source_item=src,
+								from_list=True,
+								name=src.name,
+								quantity=src.quantity,
+								order=i,
+							)
+							for i, src in enumerate(saved_list.items.all())
+						]
+					)
+		except IntegrityError:
+			# Two adds of the same list racing past validate(), e.g. a double click.
+			raise serializers.ValidationError({"saved_list": ["This list is already on this trip."]}) from None
 
 
 class TripItemViewSet(viewsets.ModelViewSet):
