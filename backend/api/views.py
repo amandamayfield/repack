@@ -131,7 +131,7 @@ class TripViewSet(OwnedModelViewSet):
 		for order, section_id in enumerate(ids):
 			sections[section_id].order = order
 		TripSection.objects.bulk_update(sections.values(), ["order"])
-		return Response(status=status.HTTP_200_OK)
+		return Response(status=status.HTTP_204_NO_CONTENT)
 
 	@action(detail=True, methods=["post"], url_path="untick-all")
 	def untick_all(self, request, pk=None):

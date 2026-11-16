@@ -167,7 +167,7 @@ def test_reorder_sections(auth_client):
 
 	r = c.post(f"/api/trips/{trip['id']}/reorder-sections/", {"section_ids": [ids[2], ids[0], ids[1]]}, format="json")
 
-	assert r.status_code == 200
+	assert r.status_code == 204
 	assert [s["name"] for s in c.get(f"/api/trips/{trip['id']}/").data["sections"]] == ["C", "A", "B"]
 
 
