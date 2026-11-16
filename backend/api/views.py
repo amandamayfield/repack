@@ -133,6 +133,18 @@ class TripViewSet(OwnedModelViewSet):
 		TripSection.objects.bulk_update(sections.values(), ["order"])
 		return Response(status=status.HTTP_200_OK)
 
+	@action(detail=True, methods=["post"], url_path="untick-all")
+	def untick_all(self, request, pk=None):
+		trip = self.get_object()
+		items = TripItem.objects.filter(section__trip=trip, removed=False)
+		section_id = request.data.get("section")
+		if section_id is not None:
+			if not isinstance(section_id, int) or not trip.sections.filter(id=section_id).exists():
+				return Response({"section": ["Pick a section of this trip."]}, status=status.HTTP_400_BAD_REQUEST)
+			items = items.filter(section_id=section_id)
+		items.update(packed=False)
+		return Response(status=status.HTTP_204_NO_CONTENT)
+
 	@action(detail=True, methods=["post"])
 	def duplicate(self, request, pk=None):
 		trip = self.get_object()

@@ -29,6 +29,7 @@ export default function TripSection({
   isFirst,
   isLast,
   onToggle,
+  onUntickAll,
   onRename,
   onMove,
   onRemove,
@@ -67,6 +68,16 @@ export default function TripSection({
       </header>
       <div id={bodyId} className="trip-section__body" hidden={hidden}>
         <div className="trip-section__actions">
+          {progress.packed > 0 && (
+            <button
+              type="button"
+              className="button button--ghost button--small"
+              onClick={() => onUntickAll(section)}
+              aria-label={`Untick all in ${section.name}`}
+            >
+              Untick all
+            </button>
+          )}
           <button
             type="button"
             className="button button--ghost button--small"

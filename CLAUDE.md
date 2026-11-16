@@ -83,6 +83,7 @@ Trip sections:
 - `PATCH {name}` renames on this trip only (blank restores the list's name on a synced section). `trip` and `saved_list` can't change. `DELETE` removes the section and its items; adding the list again gives a fresh copy.
 - `POST trips/{id}/reorder-sections/` with `{section_ids}`: every section of the trip, once each, else 400.
 - `POST trips/{id}/duplicate/` → 201 with the copy's detail.
+- `POST trips/{id}/untick-all/` → 204. Unticks every item on the trip, or only one section's with `{section}` (a section of another trip is a 400). Removed items are left alone.
 
 Trip items (`trip-items/`):
 - `POST {section, name, quantity?}` adds an extra.

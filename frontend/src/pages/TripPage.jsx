@@ -40,11 +40,13 @@ function TripDetail({ trip, reload }) {
   const overall = computeProgress(sections.flatMap((s) => s.items));
   const dates = formatDateRange(trip.start_date, trip.end_date);
 
-  function setPacked(itemId, packed) {
+  function setPacked(itemIds, packed) {
     setSections((prev) =>
       prev.map((s) => ({
         ...s,
-        items: s.items.map((i) => (i.id === itemId ? { ...i, packed } : i)),
+        items: s.items.map((i) =>
+          itemIds.includes(i.id) ? { ...i, packed } : i,
+        ),
       })),
     );
   }
@@ -52,7 +54,7 @@ function TripDetail({ trip, reload }) {
   async function handleToggle(item, packed) {
     setActionError(null);
     // Optimistic flip so the ring recomputes immediately.
-    setPacked(item.id, packed);
+    setPacked([item.id], packed);
     try {
       await api(`/trip-items/${item.id}/`, {
         method: "PATCH",
@@ -60,8 +62,44 @@ function TripDetail({ trip, reload }) {
       });
     } catch {
       // Revert on failure so the checkbox never lies about server state.
-      setPacked(item.id, !packed);
+      setPacked([item.id], !packed);
       setActionError("Couldn't update that item. Try again.");
+    }
+  }
+
+  // With no section, unticks the whole trip.
+  async function handleUntickAll(section) {
+    const ok = await confirm(
+      section
+        ? {
+            title: `Untick everything in "${section.name}"?`,
+            message:
+              "The items stay on this trip. Only their ticks are cleared.",
+            confirmLabel: "Untick all",
+          }
+        : {
+            title: "Start repacking?",
+            message:
+              "This unticks every item on this trip, so you can pack it again.",
+            confirmLabel: "Untick all",
+          },
+    );
+    if (!ok) return;
+    setActionError(null);
+    const items = section ? section.items : sections.flatMap((s) => s.items);
+    // Remember exactly what was ticked, so a failed save restores only those.
+    const ticked = items.filter((i) => i.packed).map((i) => i.id);
+    setPacked(ticked, false);
+    try {
+      await api(
+        `/trips/${trip.id}/untick-all/`,
+        section
+          ? { method: "POST", body: { section: section.id } }
+          : { method: "POST" },
+      );
+    } catch {
+      setPacked(ticked, true);
+      setActionError("Couldn't untick those items. Try again.");
     }
   }
 
@@ -224,6 +262,15 @@ function TripDetail({ trip, reload }) {
               {overall.packed} / {overall.total} packed
             </p>
             <div className="trip-hero__actions">
+              {overall.packed > 0 && (
+                <button
+                  type="button"
+                  className="button button--ghost button--small"
+                  onClick={() => handleUntickAll()}
+                >
+                  Start repacking
+                </button>
+              )}
               <button
                 type="button"
                 className="button button--ghost button--small"
@@ -270,6 +317,7 @@ function TripDetail({ trip, reload }) {
               isFirst={index === 0}
               isLast={index === sections.length - 1}
               onToggle={handleToggle}
+              onUntickAll={handleUntickAll}
               onRename={handleRename}
               onMove={handleMove}
               onRemove={handleRemove}

@@ -185,6 +185,70 @@ def test_reorder_needs_exactly_the_trips_sections(auth_client):
 	assert [s["name"] for s in c.get(f"/api/trips/{trip['id']}/").data["sections"]] == ["A", "B"]
 
 
+def _tick_everything(trip_id):
+	TripItem.objects.filter(section__trip_id=trip_id).update(packed=True)
+
+
+def _packed(trip_id):
+	return {i.name: i.packed for i in TripItem.objects.filter(section__trip_id=trip_id)}
+
+
+@pytest.mark.django_db
+def test_untick_all_unticks_the_whole_trip_but_not_removed_items(auth_client):
+	c, _ = auth_client
+	trip = _trip(c)
+	section = _add_list(c, trip, _list_with_items(c)).data
+	c.post("/api/trip-items/", {"section": section["id"], "name": "Hat"}, format="json")
+	_tick_everything(trip["id"])
+	c.delete(f"/api/trip-items/{section['items'][0]['id']}/")  # Shirts becomes a tombstone
+
+	r = c.post(f"/api/trips/{trip['id']}/untick-all/", {}, format="json")
+
+	assert r.status_code == 204
+	assert _packed(trip["id"]) == {"Shirts": True, "Sunscreen": False, "Hat": False}
+
+
+@pytest.mark.django_db
+def test_untick_all_can_target_one_section(auth_client):
+	c, _ = auth_client
+	trip = _trip(c)
+	beach = _add_list(c, trip, _list_with_items(c, "Beach")).data
+	wedding = c.post("/api/trip-sections/", {"trip": trip["id"], "name": "Wedding"}, format="json").data
+	c.post("/api/trip-items/", {"section": wedding["id"], "name": "Suit"}, format="json")
+	_tick_everything(trip["id"])
+
+	r = c.post(f"/api/trips/{trip['id']}/untick-all/", {"section": beach["id"]}, format="json")
+
+	assert r.status_code == 204
+	assert _packed(trip["id"]) == {"Shirts": False, "Sunscreen": False, "Suit": True}
+
+
+@pytest.mark.django_db
+def test_untick_all_section_must_be_on_this_trip(auth_client):
+	c, _ = auth_client
+	trip, other_trip = _trip(c), _trip(c, "Porto")
+	_add_list(c, trip, _list_with_items(c))
+	stranger = c.post("/api/trip-sections/", {"trip": other_trip["id"], "name": "X"}, format="json").data["id"]
+	_tick_everything(trip["id"])
+	url = f"/api/trips/{trip['id']}/untick-all/"
+
+	for bad in [stranger, 999999, "nope", [stranger]]:
+		assert c.post(url, {"section": bad}, format="json").status_code == 400, bad
+
+	assert all(_packed(trip["id"]).values())
+
+
+@pytest.mark.django_db
+def test_untick_all_on_someone_elses_trip_404(auth_client, other_client):
+	c, _ = auth_client
+	trip = _trip(c)
+	_add_list(c, trip, _list_with_items(c))
+	_tick_everything(trip["id"])
+
+	assert other_client.post(f"/api/trips/{trip['id']}/untick-all/", {}, format="json").status_code == 404
+	assert all(_packed(trip["id"]).values())
+
+
 @pytest.mark.django_db
 def test_sections_belong_to_their_owner(auth_client, other_client):
 	c, _ = auth_client

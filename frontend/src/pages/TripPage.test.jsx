@@ -194,6 +194,120 @@ test("a failed toggle reverts the checkbox and shows an error", async () => {
   );
 });
 
+// Camping has Tent ticked; Wedding's Suit is ticked too, so both sections have something to untick.
+const PACKED_TRIP = {
+  ...TRIP,
+  sections: TRIP.sections.map((s) => ({
+    ...s,
+    items: s.items.map((i) => (i.name === "Suit" ? { ...i, packed: true } : i)),
+  })),
+};
+
+test("untick all in a section asks first, then unticks only that section", async () => {
+  baseMock({ trip: PACKED_TRIP });
+  renderTrip();
+  await loaded();
+
+  await userEvent.click(
+    screen.getByRole("button", { name: "Untick all in Camping" }),
+  );
+  const dialog = await screen.findByRole("dialog", {
+    name: 'Untick everything in "Camping"?',
+  });
+  await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+  expect(screen.getByRole("checkbox", { name: /Tent/ })).toBeChecked();
+
+  await userEvent.click(
+    screen.getByRole("button", { name: "Untick all in Camping" }),
+  );
+  const again = await screen.findByRole("dialog", {
+    name: 'Untick everything in "Camping"?',
+  });
+  await userEvent.click(
+    within(again).getByRole("button", { name: "Untick all" }),
+  );
+
+  await waitFor(() =>
+    expect(screen.getByRole("checkbox", { name: /Tent/ })).not.toBeChecked(),
+  );
+  expect(screen.getByRole("checkbox", { name: /Suit/ })).toBeChecked();
+  expect(api).toHaveBeenCalledWith("/trips/5/untick-all/", {
+    method: "POST",
+    body: { section: 11 },
+  });
+});
+
+test("start repacking unticks the whole trip", async () => {
+  baseMock({ trip: PACKED_TRIP });
+  renderTrip();
+  await loaded();
+
+  await userEvent.click(
+    screen.getByRole("button", { name: "Start repacking" }),
+  );
+  const dialog = await screen.findByRole("dialog", {
+    name: "Start repacking?",
+  });
+  await userEvent.click(
+    within(dialog).getByRole("button", { name: "Untick all" }),
+  );
+
+  await waitFor(() =>
+    expect(
+      screen.getByRole("progressbar", { name: "Yosemite packing progress" }),
+    ).toHaveAttribute("aria-valuenow", "0"),
+  );
+  expect(api).toHaveBeenCalledWith("/trips/5/untick-all/", { method: "POST" });
+});
+
+test("a failed untick puts the ticks back and shows an error", async () => {
+  baseMock({
+    trip: PACKED_TRIP,
+    handler: (path) =>
+      path === "/trips/5/untick-all/"
+        ? Promise.reject(new ApiError(500))
+        : undefined,
+  });
+  renderTrip();
+  await loaded();
+
+  await userEvent.click(
+    screen.getByRole("button", { name: "Start repacking" }),
+  );
+  const dialog = await screen.findByRole("dialog", {
+    name: "Start repacking?",
+  });
+  await userEvent.click(
+    within(dialog).getByRole("button", { name: "Untick all" }),
+  );
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Couldn't untick those items",
+  );
+  expect(screen.getByRole("checkbox", { name: /Tent/ })).toBeChecked();
+  expect(screen.getByRole("checkbox", { name: /Suit/ })).toBeChecked();
+});
+
+test("untick buttons only appear where something is packed", async () => {
+  const nothingPacked = {
+    ...TRIP,
+    sections: TRIP.sections.map((s) => ({
+      ...s,
+      items: s.items.map((i) => ({ ...i, packed: false })),
+    })),
+  };
+  baseMock({ trip: nothingPacked });
+  renderTrip();
+  await loaded();
+
+  expect(
+    screen.queryByRole("button", { name: "Start repacking" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: /^Untick all in/ }),
+  ).not.toBeInTheDocument();
+});
+
 // --- Adding sections ---
 
 test("lists already on the trip are left out of the picker", async () => {
