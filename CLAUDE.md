@@ -1,10 +1,10 @@
 # RePack — CLAUDE.md
 
-Ground truth for agents working in this repo, verified against the code as of commit `cbc10fe`. When they disagree, the code wins.
+Ground truth for agents working in this repo, verified against the code as of commit `56aed6c`. When they disagree, the code wins.
 
 ## What the app is
 
-**RePack** is a personal packing assistant. A user builds reusable **saved lists** (templates, e.g. "Camping"), creates a **trip**, and **imports** saved lists into it. Trip items are independent, checkable copies: packing a trip never changes the list it came from. **Categories** group items on both. The core value is the template → copy split plus per-trip packing progress.
+**RePack** is a personal packing assistant. A user builds reusable **saved lists** (templates, e.g. "Toiletries"), creates a **trip**, and adds lists to it. A trip is an ordered set of headed **sections**: each is either **synced** to a saved list or a **trip-only** heading (e.g. "Wedding"). Items are a name plus an optional amount. Synced sections follow later edits to their list on current and upcoming trips, one way only; ticks, trip-only amounts, deletions and extras stay on the trip. The core value is per-trip packing progress over reusable lists.
 
 ## User personas
 
@@ -19,12 +19,6 @@ Judge user-facing changes against three fixed personas. Each file has the full p
 - The persona files are in `.claude/skills/persona-audit/personas/`. Treat them as the source of truth; this table is only a summary.
 - **When designing or reviewing a UI or flow change,** say which personas it affects and how. When a change fixes or touches a finding from the latest audit, say so.
 - **The `/persona-audit` skill re-runs the audit.** Pass persona names to run a subset (e.g. `/persona-audit harold`), plus any free text to focus on one area. It saves a dated report to `.claude/user-audits/YYYY-MM-DD.md` and marks each earlier finding as fixed, still open, or worse. Suggest running it after a user-facing change lands.
-- **The baseline is `.claude/initial-user-audit.md`** (2026-11-14). The newest file in `.claude/user-audits/` replaces it once that folder exists. Its top fixes:
-  1. Duplicate a trip / save a trip as a list.
-  2. Re-sync a trip from an edited list, and handle duplicate items on import (today each list can be imported only once, and same-name items are copied twice).
-  3. Unpack all / hide packed.
-  4. Friendlier sign-up: show password rules up front, add password recovery, guide the first visit.
-  5. Larger controls that are always visible, plus undo after delete.
 
 ## Architecture
 
@@ -40,20 +34,31 @@ React 19 (Vite) → Django 5.2 + DRF → PostgreSQL 16
 
 | File | Role |
 |---|---|
-| `models.py` | `Category`, `SavedList`, `SavedListItem`, `Trip`, `TripItem` |
-| `serializers.py` | Model serializers; `OwnedCategoryMixin` limits `category` to the user's own |
-| `views.py` | ViewSets; `next_order()` assigns item/category `order` server-side |
+| `models.py` | `SavedList`, `SavedListItem`, `Trip`, `TripSection`, `TripItem` |
+| `serializers.py` | Model serializers; the trip-side edit rules live in `TripItemSerializer.validate` and `TripSectionSerializer.validate` |
+| `views.py` | ViewSets; `next_order()` assigns `order` server-side; views call `sync.py` inside `transaction.atomic()` |
+| `sync.py` | All list → trip sync rules, past-trip catch-up and `duplicate_trip`. Called explicitly; there are no signals |
 | `auth.py` | `UserSerializer` (runs password validators), `AuthThrottle`, register/login/logout/me/csrf views |
 | `authentication.py` | `SessionAuthentication401`, kept separate from `auth.py` to avoid a circular import |
 | `admin.py` | All models registered |
 
 ### Data model
-- **Category**: `{user, name, order}`.
 - **SavedList**: `{user, name, description, created_at, updated_at}`, with many `items`.
-- **SavedListItem**: `{saved_list, category?, name, quantity?, order}`. It has no `packed` field.
-- **Trip**: `{user, name, start_date?, end_date?, imported_lists (M2M → SavedList), created_at, updated_at}`. Trips use dates only (the `days` field was removed), and `end_date >= start_date` is validated.
-- **TripItem**: `{trip, category?, name, quantity?, packed, order}`.
+- **SavedListItem**: `{saved_list, name, quantity?, order}`. It has no `packed` field and can't move to another list.
+- **Trip**: `{user, name, start_date?, end_date?, created_at, updated_at}`. `end_date >= start_date` is validated.
+- **TripSection**: `{trip, saved_list?, custom_name, order}`. `saved_list` null means trip-only. One section per list per trip (unique constraint). `display_name` is `custom_name`, else the list's name, else "Deleted list".
+- **TripItem**: `{section, source_item?, from_list, name, quantity?, packed, quantity_overridden, removed, order}`.
+  - `from_list` marks a synced item; `False` is a trip-only extra. Use it, not `source_item is None`, which also happens when a past trip's list item was deleted.
+  - `removed` is a tombstone for a synced item deleted on the trip: hidden everywhere, never counted, and it stops sync adding the item back.
+- `saved_list` and `source_item` are `SET_NULL`, so past trips keep their copies when lists change.
 - `quantity` must be ≥ 1 when set.
+
+### Sync rules (`sync.py`)
+- A trip is **current** when `end_date` is empty or today or later (server date, UTC). Only current trips sync; past trips stay as they were.
+- List item added → appended after the section's synced items, before extras. Renamed → renamed and unticked. Amount changed → updated and unticked, unless the trip set its own amount (`quantity_overridden`), which wins and keeps its tick. Deleted → removed from current trips.
+- List renamed → past sections keep the old name. List deleted → removed from current trips; past trips keep it as a trip-only section whose items become extras.
+- A trip whose end date moves from past to current catches up (`catch_up_trip`).
+- Duplicate trip rebuilds synced sections from the list as it is now, then reapplies the trip's own amounts and deletions; extras and trip-only sections are copied; nothing is ticked; no dates.
 
 ### API (all under `/api/`)
 
@@ -64,19 +69,25 @@ Auth:
 Status codes, which the frontend relies on:
 - **401** means not logged in.
 - **403** means a CSRF failure or not allowed.
-- **404** means another user's object. Cross-user access is always 404, never 403.
+- **404** means another user's object. Cross-user access is always 404, never 403. Pointing a field at someone else's trip, list or section is a 400.
 
 CRUD (DRF routers):
-- `categories/`, `saved-lists/`, `saved-list-items/`, `trips/`, `trip-items/`.
+- `saved-lists/`, `saved-list-items/`, `trips/`, `trip-sections/`, `trip-items/`.
 - List vs detail:
   - `GET saved-lists/` returns summaries without items; the detail view embeds `items`.
-  - `GET trips/` returns `packed_count` and `total_count` (computed in the database); the detail view embeds `items` and `imported_lists`.
+  - `GET trips/` returns `packed_count` and `total_count` (computed in the database, `removed` left out); the detail view embeds `sections`, each `{id, name, saved_list, is_synced, order, items}`.
 - `order` is assigned by the server on create (appended last). Clients don't send it.
-- Child items check that you own the parent (`saved_list` / `trip`) and the `category`.
 
-Custom action:
-- `POST trips/{id}/import-list/` with `{saved_list_id}` returns 201. It copies the list's items into the trip, unpacked and appended after existing items.
-- A list can be imported into a given trip **only once**; a repeat returns **409**.
+Trip sections:
+- `POST trip-sections/` with `{trip, saved_list}` copies the list in; with `{trip, name}` makes a trip-only heading. The same list twice on one trip is a **400** `{saved_list: ["This list is already on this trip."]}`.
+- `PATCH {name}` renames on this trip only (blank restores the list's name on a synced section). `trip` and `saved_list` can't change. `DELETE` removes the section and its items; adding the list again gives a fresh copy.
+- `POST trips/{id}/reorder-sections/` with `{section_ids}`: every section of the trip, once each, else 400.
+- `POST trips/{id}/duplicate/` → 201 with the copy's detail.
+
+Trip items (`trip-items/`):
+- `POST {section, name, quantity?}` adds an extra.
+- On a synced item: changing `quantity` sets `quantity_overridden`; changing `name` is a 400; `DELETE` sets `removed`. Resending unchanged values is fine. On an extra, edits and `DELETE` act normally.
+- Items can't move between sections.
 
 ## Frontend (`frontend/src/`)
 
@@ -87,17 +98,18 @@ Custom action:
 - **Routes** (`App.jsx`):
   - `/login`
   - `/trips` (luggage-tag cards with a progress bar)
-  - `/trips/:id` (progress ring hero, items grouped by category, edit/delete trip and items, add item, import a list)
+  - `/trips/:id` (progress ring hero; sections with Hide/Show, rename, move, remove, items and their own Add item form; "Add a section" picks a saved list or makes a heading; duplicate/edit/delete trip)
   - `/lists`, `/lists/:id` (editor, edit details)
-  - `/categories` (add, rename, delete)
 - **Shared components:**
-  - `ItemRow`: view, inline edit and delete; it renders the checkbox only when given `onToggle`.
-  - `ItemForm`, `TripForm`, `ListForm`: create mode when there's no `onCancel`, edit mode with it.
+  - `ItemRow`: view, inline edit and delete; it renders the checkbox only when given `onToggle`. Amounts show as `×3`, read aloud as ", quantity 3".
+  - `ItemForm`, `TripForm`, `ListForm`: create mode when there's no `onCancel`, edit mode with it. `lockName` on `ItemForm`/`ItemRow` limits a synced trip item's edit to its amount.
+  - `TripSection` and `AddSectionForm` (trip page). `TripSection` remembers Hide/Show per browser in `localStorage` (`repack.section-collapsed.<id>`).
   - `ProgressBar` (dashboard) and `ProgressRing` (trip page). Both use `role="progressbar"` and show "All packed" at 100%.
-- **`hooks/useDialog.jsx`**: `const { confirm, alert, dialog } = useDialog()`, then `await confirm({title, message, confirmLabel})`. It renders `components/Dialog.jsx`, a native `<dialog>`. **Use it in place of `window.confirm` / `window.alert`.**
+- **`hooks/useDialog.jsx`**: `const { confirm, alert, prompt, dialog } = useDialog()`, then `await confirm({title, message, confirmLabel})`; `prompt` resolves to the text or `null`. It renders `components/Dialog.jsx`, a native `<dialog>`. **Use it in place of `window.confirm` / `window.alert`.**
 - **`hooks/useFetch.js`**: `{data, error, loading, reload}` for GETs.
-- **`lib/grouping.js`**: client-side progress counts and grouping by category. **`lib/dates.js`**: `formatDateRange` (UTC-safe).
-- **Progress is computed two ways on purpose.** The dashboard uses the server counts so it doesn't download every item. The trip page computes from the items it already has, and checking an item updates it optimistically (rolling back if the save fails).
+- **`lib/progress.js`**: `computeProgress(items)`. **`lib/dates.js`**: `formatDateRange` (UTC-safe).
+- **Progress is computed two ways on purpose.** The dashboard uses the server counts so it doesn't download every item. The trip page computes from the sections it already has, and checking an item updates it optimistically (rolling back if the save fails).
+- **Deletes on a trip ask first.** A synced item's message says the list keeps it; an extra's says it can't be undone.
 
 ### Styling
 - All styling is in `src/App.css`. It uses plain CSS with tokens on `:root` and a `prefers-color-scheme: dark` override. Fonts are Zilla Slab (headings) and Atkinson Hyperlegible (body), loaded from Google Fonts in `index.html`.
@@ -108,7 +120,7 @@ Custom action:
 
 ## Conventions & gotchas
 
-- **AI-generated files live in `.claude/`:** audits (`.claude/initial-user-audit.md`, `.claude/user-audits/`), design docs (`.claude/specs/`), plans (`.claude/plans/`). This overrides any skill's default location, such as `docs/superpowers/`. The whole `.claude/` folder is git-ignored and never committed. `CLAUDE.md` stays at the repo root.
+- **AI-generated files live in `.claude/`:** audits (`.claude/user-audits/`), design docs (`.claude/specs/`), plans (`.claude/plans/`). This overrides any skill's default location, such as `docs/superpowers/`. The whole `.claude/` folder is git-ignored and never committed. `CLAUDE.md` stays at the repo root.
 - **Commits:** one line in the form `feat|fix|test: short description`, with **no `Co-Authored-By` or other trailers**. Don't commit unless asked.
 - **Formatting:**
   - Backend uses ruff (`backend/pyproject.toml`): tabs, line length 120, import sorting, RUF012 ignored for Django's list class attributes, migrations excluded.
@@ -117,5 +129,5 @@ Custom action:
   - Backend tests need the Postgres container (`docker compose up -d db`). Shared fixtures (`client_for`, `auth_client`, `other_client`) are in `api/tests/conftest.py`.
   - Frontend tests mock `api/client` as `{ api: vi.fn(), setUnauthorizedHandler: vi.fn() }`; reject with `new ApiError(status, body)`.
   - Dropdown options load in their own requests, so **wait for an option** (`findAllByRole("option", …)`) before `selectOptions`, or the test will be flaky.
-  - `src/test/setup.js` polyfills `<dialog>` for jsdom.
+  - `src/test/setup.js` polyfills `<dialog>` for jsdom, and restores jsdom's `localStorage` when Node 25+'s own experimental one shadows it.
 - **CI:** none is set up yet.

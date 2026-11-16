@@ -8,7 +8,7 @@ by Amanda Mayfield
 
 A packing app with reusable lists to streamline packing for trips.
 
-Build **saved lists** of the things you always bring (e.g. "Camping"), then create a **trip** and import a list into it. Trip items are independent copies you check off as you pack, so packing a trip never changes the list it came from. Group items with **categories** and track progress per trip.
+Build **saved lists** of the things you always bring (e.g. "Toiletries"), then create a **trip** and add your lists to it. Each list becomes its own **section** on the trip, and you can add headings just for that trip (e.g. "Wedding"). Editing a list updates its sections on current and upcoming trips; ticks, trip-only amounts and extras stay on the trip, and packing never changes the list. Track progress per trip.
 
 **Stack:** React (Vite) → Django + Django REST Framework → PostgreSQL, with session-cookie auth. In production Django serves the built React app from the same origin.
 
