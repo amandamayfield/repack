@@ -2,6 +2,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models.functions import Lower
 
 
 class SavedList(models.Model):
@@ -41,6 +42,8 @@ class Trip(models.Model):
 
 	class Meta:
 		ordering = ["-updated_at"]
+		# Backs up TripDetailSerializer.validate_name, which two requests at once can both pass.
+		constraints = [models.UniqueConstraint(Lower("name"), "user", name="unique_trip_name_per_user")]
 
 	def __str__(self):
 		return self.name

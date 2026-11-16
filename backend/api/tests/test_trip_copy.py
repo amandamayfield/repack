@@ -3,6 +3,8 @@ from datetime import timedelta
 import pytest
 from django.utils import timezone
 
+from api.serializers import TripDetailSerializer
+
 TODAY = timezone.localdate()
 
 
@@ -194,3 +196,18 @@ def test_duplicate_of_past_trip_drops_items_gone_from_the_list(auth_client):
 	copy = c.post(f"/api/trips/{trip['id']}/duplicate/").data
 
 	assert [i["name"] for i in copy["sections"][0]["items"]] == ["Sunscreen", "Hair ties"]
+
+
+@pytest.mark.django_db
+def test_duplicating_into_a_name_that_loses_the_race_400(auth_client, monkeypatch):
+	c, _ = auth_client
+	trip = c.post("/api/trips/", {"name": "Chicago"}, format="json").data
+	c.post("/api/trips/", {"name": "Porto"}, format="json")
+	# The name check passes, as it does when another request saves the same name a moment later.
+	monkeypatch.setattr(TripDetailSerializer, "validate_name", lambda self, value: value)
+
+	r = c.post(f"/api/trips/{trip['id']}/duplicate/", {"name": "Porto"}, format="json")
+
+	assert r.status_code == 400
+	assert r.data == {"name": ['You already have a trip called "Porto". Trip names can\'t match, so pick another.']}
+	assert len(c.get("/api/trips/").data) == 2

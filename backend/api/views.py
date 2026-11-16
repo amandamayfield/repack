@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Max, Q
 from rest_framework import serializers, status, viewsets
@@ -16,6 +18,7 @@ from .serializers import (
 	TripItemSerializer,
 	TripListSerializer,
 	TripSectionSerializer,
+	trip_name_taken,
 )
 
 
@@ -53,6 +56,18 @@ def lists_to_add(request, trip=None):
 		if on_trip is not None:
 			raise serializers.ValidationError({"saved_lists": [f"{on_trip.saved_list.name} is already on this trip."]})
 	return [lists[i] for i in ids]
+
+
+@contextmanager
+def saving_trip_name(name):
+	"""Atomic, and turns a name another request saved first into the same 400 that validate_name gives."""
+	try:
+		with transaction.atomic():
+			yield
+	except IntegrityError as error:
+		if "unique_trip_name_per_user" not in str(error):
+			raise
+		raise serializers.ValidationError({"name": [trip_name_taken(name)]}) from None
 
 
 def add_list_sections(trip, saved_lists):
@@ -149,16 +164,16 @@ class TripViewSet(OwnedModelViewSet):
 
 	def perform_create(self, serializer):
 		saved_lists = lists_to_add(self.request) if "saved_lists" in self.request.data else []
-		with transaction.atomic():
+		with saving_trip_name(serializer.validated_data["name"]):
 			trip = serializer.save(user=self.request.user)
 			add_list_sections(trip, saved_lists)
 
-	@transaction.atomic
 	def perform_update(self, serializer):
 		was_current = sync.is_current(serializer.instance)
-		trip = serializer.save()
-		if not was_current and sync.is_current(trip):
-			sync.catch_up_trip(trip)
+		with saving_trip_name(serializer.validated_data.get("name")):
+			trip = serializer.save()
+			if not was_current and sync.is_current(trip):
+				sync.catch_up_trip(trip)
 
 	@action(detail=True, methods=["post"], url_path="reorder-sections")
 	def reorder_sections(self, request, pk=None):
@@ -208,8 +223,9 @@ class TripViewSet(OwnedModelViewSet):
 		# Same rules as editing a trip; every field is optional.
 		details = TripDetailSerializer(data=request.data, partial=True, context={"request": request})
 		details.is_valid(raise_exception=True)
-		with transaction.atomic():
-			copy = sync.duplicate_trip(trip, **details.validated_data)
+		name = details.validated_data.pop("name", None) or sync.copy_name(trip)
+		with saving_trip_name(name):
+			copy = sync.duplicate_trip(trip, name=name, **details.validated_data)
 		return Response(TripDetailSerializer(copy, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 

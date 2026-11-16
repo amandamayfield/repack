@@ -122,6 +122,10 @@ class TripListSerializer(serializers.ModelSerializer):
 		fields = ["id", "name", "start_date", "end_date", "packed_count", "total_count", "created_at", "updated_at"]
 
 
+def trip_name_taken(name):
+	return f'You already have a trip called "{name}". Trip names can\'t match, so pick another.'
+
+
 class TripDetailSerializer(serializers.ModelSerializer):
 	sections = TripSectionSerializer(many=True, read_only=True)
 	# What Duplicate offers as the copy's name.
@@ -139,9 +143,7 @@ class TripDetailSerializer(serializers.ModelSerializer):
 		if self.instance is not None:
 			clashes = clashes.exclude(pk=self.instance.pk)
 		if clashes.exists():
-			raise serializers.ValidationError(
-				f'You already have a trip called "{value}". Trip names can\'t match, so pick another.'
-			)
+			raise serializers.ValidationError(trip_name_taken(value))
 		return value
 
 	def validate(self, attrs):

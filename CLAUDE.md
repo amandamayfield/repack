@@ -45,7 +45,7 @@ React 19 (Vite) → Django 5.2 + DRF → PostgreSQL 16
 ### Data model
 - **SavedList**: `{user, name, description, created_at, updated_at}`, with many `items`.
 - **SavedListItem**: `{saved_list, name, quantity?, order}`. It has no `packed` field and can't move to another list.
-- **Trip**: `{user, name, start_date?, end_date?, created_at, updated_at}`. `end_date >= start_date` is validated. Names are unique per user, ignoring case, on create, edit and duplicate (a 400 on `name`).
+- **Trip**: `{user, name, start_date?, end_date?, created_at, updated_at}`. `end_date >= start_date` is validated. Names are unique per user, ignoring case, on create, edit and duplicate (a 400 on `name`). `validate_name` gives the message; the `unique_trip_name_per_user` constraint catches two saves at once, and `saving_trip_name` in `views.py` turns that into the same 400.
 - **TripSection**: `{trip, saved_list?, custom_name, order}`. `saved_list` null means trip-only. One section per list per trip (unique constraint). `display_name` is `custom_name`, else the list's name, else "Deleted list".
 - **TripItem**: `{section, source_item?, from_list, name, quantity?, packed, quantity_overridden, removed, order}`.
   - `from_list` marks a synced item; `False` is a trip-only extra. Use it, not `source_item is None`, which also happens when a past trip's list item was deleted.

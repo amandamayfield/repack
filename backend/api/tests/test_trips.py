@@ -1,6 +1,9 @@
 import pytest
+from django.contrib.auth.models import User
+from django.db import IntegrityError, transaction
 
-from api.models import TripSection
+from api.models import Trip, TripSection
+from api.serializers import TripDetailSerializer
 
 
 def _section(trip):
@@ -111,3 +114,44 @@ def test_renaming_a_trip_to_another_trips_name_400(auth_client):
 	assert c.patch(f"/api/trips/{porto['id']}/", {"name": "CHICAGO"}, format="json").status_code == 400
 	# Saving a trip under its own name isn't a clash.
 	assert c.patch(f"/api/trips/{porto['id']}/", {"name": "Porto", "end_date": None}, format="json").status_code == 200
+
+
+@pytest.fixture
+def lost_race(monkeypatch):
+	"""The name check passes, as it does when another request saves the same name a moment later."""
+	monkeypatch.setattr(TripDetailSerializer, "validate_name", lambda self, value: value)
+
+
+@pytest.mark.django_db
+def test_the_database_refuses_two_trips_with_the_same_name(auth_client):
+	_, user = auth_client
+	Trip.objects.create(user=user, name="Chicago")
+	Trip.objects.create(user=User.objects.create_user(username="sam"), name="Chicago")
+
+	with pytest.raises(IntegrityError), transaction.atomic():
+		Trip.objects.create(user=user, name="CHICAGO")
+
+
+@pytest.mark.django_db
+def test_creating_a_trip_that_loses_the_name_race_400(auth_client, lost_race):
+	c, _ = auth_client
+	c.post("/api/trips/", {"name": "Chicago"}, format="json")
+
+	r = c.post("/api/trips/", {"name": "chicago"}, format="json")
+
+	assert r.status_code == 400
+	assert r.data == {"name": ['You already have a trip called "chicago". Trip names can\'t match, so pick another.']}
+	assert len(c.get("/api/trips/").data) == 1
+
+
+@pytest.mark.django_db
+def test_renaming_a_trip_that_loses_the_name_race_400(auth_client, lost_race):
+	c, _ = auth_client
+	c.post("/api/trips/", {"name": "Chicago"}, format="json")
+	porto = c.post("/api/trips/", {"name": "Porto"}, format="json").data
+
+	r = c.patch(f"/api/trips/{porto['id']}/", {"name": "Chicago"}, format="json")
+
+	assert r.status_code == 400
+	assert r.data == {"name": ['You already have a trip called "Chicago". Trip names can\'t match, so pick another.']}
+	assert c.get(f"/api/trips/{porto['id']}/").data["name"] == "Porto"
