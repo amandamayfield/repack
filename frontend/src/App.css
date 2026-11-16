@@ -358,7 +358,7 @@ select:focus-visible {
 }
 
 .button--small {
-  min-height: 2.25rem;
+  min-height: 2.75rem;
   padding: var(--space-1) var(--space-3);
   font-size: 0.875rem;
 }
@@ -607,7 +607,7 @@ select:focus-visible {
 .trip-section__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1);
+  gap: var(--space-2);
 }
 
 .trip-section__empty {
@@ -732,20 +732,7 @@ label.item-row__label {
 
 .item-row__actions {
   display: flex;
-  gap: var(--space-1);
-}
-
-/* On devices that hover, keep rows calm until you point at them. Touch
-   devices always show the actions. */
-@media (hover: hover) {
-  .item-row .item-row__actions {
-    opacity: 0;
-  }
-
-  .item-row:hover .item-row__actions,
-  .item-row:focus-within .item-row__actions {
-    opacity: 1;
-  }
+  gap: var(--space-2);
 }
 
 /* ---------- Simple index (lists) ---------- */
