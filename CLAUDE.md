@@ -104,7 +104,7 @@ Trip items (`trip-items/`):
   - `ItemRow`: view, inline edit and delete; it renders the checkbox only when given `onToggle`. Amounts show as `×3`, read aloud as ", quantity 3".
   - `ItemForm`, `TripForm`, `ListForm`: create mode when there's no `onCancel`, edit mode with it. `lockName` on `ItemForm`/`ItemRow` limits a synced trip item's edit to its amount.
   - `TripSection` and `AddSectionForm` (trip page). `TripSection` remembers Hide/Show per browser in `localStorage` (`repack.section-collapsed.<id>`).
-  - `ProgressBar` (dashboard) and `ProgressRing` (trip page). Both use `role="progressbar"` and show "All packed" at 100%.
+  - `ProgressBar` (dashboard) and `ProgressRing` (trip page). Both use `role="progressbar"`; only the ring shows "All packed" at 100%.
 - **`hooks/useDialog.jsx`**: `const { confirm, alert, prompt, dialog } = useDialog()`, then `await confirm({title, message, confirmLabel})`; `prompt` resolves to the text or `null`. It renders `components/Dialog.jsx`, a native `<dialog>`. **Use it in place of `window.confirm` / `window.alert`.**
 - **`hooks/useFetch.js`**: `{data, error, loading, reload}` for GETs.
 - **`lib/progress.js`**: `computeProgress(items)`. **`lib/dates.js`**: `formatDateRange` (UTC-safe).
