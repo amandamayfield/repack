@@ -16,6 +16,7 @@ vi.mock("../api/client", () => ({
 const TRIP = {
   id: 5,
   name: "Yosemite",
+  copy_name: "Copy of Yosemite",
   sections: [
     {
       id: 11,
@@ -315,10 +316,10 @@ test("lists already on the trip are left out of the picker", async () => {
   renderTrip();
   await loaded();
 
-  const picker = screen.getByLabelText("Saved list");
-  await within(picker).findByRole("option", { name: "Beach" });
+  const picker = await screen.findByRole("group", { name: "Saved lists" });
+  await within(picker).findByRole("checkbox", { name: "Beach" });
   expect(
-    within(picker).queryByRole("option", { name: "Camping" }),
+    within(picker).queryByRole("checkbox", { name: "Camping" }),
   ).not.toBeInTheDocument();
 });
 
@@ -330,42 +331,51 @@ test("when every list is on the trip, the picker says so", async () => {
   expect(
     await screen.findByText("All your saved lists are on this trip."),
   ).toBeInTheDocument();
-  expect(screen.queryByLabelText("Saved list")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("group", { name: "Saved lists" }),
+  ).not.toBeInTheDocument();
 });
 
-test("adding a saved list posts to /trip-sections/", async () => {
-  baseMock();
+test("adding several saved lists sends them in one request, in the order shown", async () => {
+  baseMock({
+    lists: [
+      { id: 99, name: "Camping" },
+      { id: 98, name: "Beach" },
+      { id: 97, name: "Hiking" },
+    ],
+  });
   renderTrip();
   await loaded();
 
-  await screen.findAllByRole("option", { name: "Beach" });
-  await userEvent.selectOptions(screen.getByLabelText("Saved list"), "98");
-  await userEvent.click(screen.getByRole("button", { name: "Add list" }));
+  await userEvent.click(
+    await screen.findByRole("checkbox", { name: "Hiking" }),
+  );
+  await userEvent.click(screen.getByRole("checkbox", { name: "Beach" }));
+  await userEvent.click(screen.getByRole("button", { name: "Add lists" }));
 
   await waitFor(() =>
-    expect(api).toHaveBeenCalledWith("/trip-sections/", {
+    expect(api).toHaveBeenCalledWith("/trips/5/add-lists/", {
       method: "POST",
-      body: { trip: 5, saved_list: 98 },
+      body: { saved_lists: [98, 97] },
     }),
   );
 });
 
-test("double-clicking Add list sends one request", async () => {
+test("double-clicking Add lists sends one request", async () => {
   baseMock({
-    handler: (path, opts) =>
-      path === "/trip-sections/" && opts?.method === "POST"
+    handler: (path) =>
+      path === "/trips/5/add-lists/"
         ? new Promise(() => {}) // still in flight
         : undefined,
   });
   renderTrip();
   await loaded();
 
-  await screen.findAllByRole("option", { name: "Beach" });
-  await userEvent.selectOptions(screen.getByLabelText("Saved list"), "98");
-  await userEvent.dblClick(screen.getByRole("button", { name: "Add list" }));
+  await userEvent.click(await screen.findByRole("checkbox", { name: "Beach" }));
+  await userEvent.dblClick(screen.getByRole("button", { name: "Add lists" }));
 
   const posts = api.mock.calls.filter(
-    ([path, opts]) => path === "/trip-sections/" && opts?.method === "POST",
+    ([path]) => path === "/trips/5/add-lists/",
   );
   expect(posts).toHaveLength(1);
 });
@@ -391,11 +401,11 @@ test("adding a trip-only heading posts its name", async () => {
 
 test("a failed add shows the server's message", async () => {
   baseMock({
-    handler: (path, opts) =>
-      path === "/trip-sections/" && opts?.method === "POST"
+    handler: (path) =>
+      path === "/trips/5/add-lists/"
         ? Promise.reject(
             new ApiError(400, {
-              saved_list: ["This list is already on this trip."],
+              saved_lists: ["Beach is already on this trip."],
             }),
           )
         : undefined,
@@ -403,12 +413,11 @@ test("a failed add shows the server's message", async () => {
   renderTrip();
   await loaded();
 
-  await screen.findAllByRole("option", { name: "Beach" });
-  await userEvent.selectOptions(screen.getByLabelText("Saved list"), "98");
-  await userEvent.click(screen.getByRole("button", { name: "Add list" }));
+  await userEvent.click(await screen.findByRole("checkbox", { name: "Beach" }));
+  await userEvent.click(screen.getByRole("button", { name: "Add lists" }));
 
   expect(await screen.findByRole("alert")).toHaveTextContent(
-    "This list is already on this trip.",
+    "Beach is already on this trip.",
   );
 });
 
@@ -739,11 +748,11 @@ test("a fully packed trip shows the All packed stamp", async () => {
   expect(ring).toHaveTextContent("All packed");
 });
 
-test("duplicate trip posts and opens the copy", async () => {
+test("duplicate asks for a name and dates, then opens the copy", async () => {
   baseMock({
     handler: (path) =>
       path === "/trips/5/duplicate/"
-        ? Promise.resolve({ id: 6, name: "Copy of Yosemite" })
+        ? Promise.resolve({ id: 6, name: "Yosemite again" })
         : undefined,
   });
   renderTrip();
@@ -751,6 +760,86 @@ test("duplicate trip posts and opens the copy", async () => {
     await screen.findByRole("button", { name: "Duplicate trip" }),
   );
 
-  expect(api).toHaveBeenCalledWith("/trips/5/duplicate/", { method: "POST" });
+  const form = screen.getByRole("region", { name: "Duplicate this trip" });
+  const name = within(form).getByLabelText("Trip name");
+  expect(name).toHaveValue("Copy of Yosemite");
+  await userEvent.clear(name);
+  await userEvent.type(name, "Yosemite again");
+  await userEvent.type(
+    within(form).getByLabelText("Start date (optional)"),
+    "2027-06-01",
+  );
+  await userEvent.click(
+    within(form).getByRole("button", { name: "Make the copy" }),
+  );
+
   await waitFor(() => expect(api).toHaveBeenCalledWith("/trips/6/"));
+  expect(api).toHaveBeenCalledWith("/trips/5/duplicate/", {
+    method: "POST",
+    body: { name: "Yosemite again", start_date: "2027-06-01", end_date: null },
+  });
+});
+
+test("a name that's already taken shows why in the duplicate form", async () => {
+  const message =
+    'You already have a trip called "Yosemite". Trip names can\'t match, so pick another.';
+  baseMock({
+    handler: (path) =>
+      path === "/trips/5/duplicate/"
+        ? Promise.reject(new ApiError(400, { name: [message] }))
+        : undefined,
+  });
+  renderTrip();
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Duplicate trip" }),
+  );
+
+  const form = screen.getByRole("region", { name: "Duplicate this trip" });
+  await userEvent.clear(within(form).getByLabelText("Trip name"));
+  await userEvent.type(within(form).getByLabelText("Trip name"), "Yosemite");
+  await userEvent.click(
+    within(form).getByRole("button", { name: "Make the copy" }),
+  );
+
+  expect(await within(form).findByRole("alert")).toHaveTextContent(message);
+});
+
+test("cancelling duplicate makes no copy", async () => {
+  baseMock();
+  renderTrip();
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Duplicate trip" }),
+  );
+
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+  expect(
+    screen.queryByRole("region", { name: "Duplicate this trip" }),
+  ).not.toBeInTheDocument();
+  expect(api).not.toHaveBeenCalledWith(
+    "/trips/5/duplicate/",
+    expect.anything(),
+  );
+});
+
+test("double-clicking Make the copy makes one copy", async () => {
+  baseMock({
+    handler: (path) =>
+      path === "/trips/5/duplicate/"
+        ? new Promise(() => {}) // still in flight
+        : undefined,
+  });
+  renderTrip();
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Duplicate trip" }),
+  );
+
+  await userEvent.dblClick(
+    screen.getByRole("button", { name: "Make the copy" }),
+  );
+
+  const posts = api.mock.calls.filter(
+    ([path]) => path === "/trips/5/duplicate/",
+  );
+  expect(posts).toHaveLength(1);
 });

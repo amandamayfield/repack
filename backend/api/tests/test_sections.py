@@ -249,6 +249,84 @@ def test_untick_all_on_someone_elses_trip_404(auth_client, other_client):
 	assert all(_packed(trip["id"]).values())
 
 
+def _section_names(c, trip):
+	return [(s["name"], len(s["items"])) for s in c.get(f"/api/trips/{trip['id']}/").data["sections"]]
+
+
+@pytest.mark.django_db
+def test_add_lists_adds_each_in_the_order_given(auth_client):
+	c, _ = auth_client
+	trip = _trip(c)
+	beach, hiking = _list_with_items(c, "Beach"), _list_with_items(c, "Hiking")
+	c.post("/api/trip-sections/", {"trip": trip["id"], "name": "Wedding"}, format="json")
+
+	r = c.post(f"/api/trips/{trip['id']}/add-lists/", {"saved_lists": [hiking["id"], beach["id"]]}, format="json")
+
+	assert r.status_code == 204
+	assert _section_names(c, trip) == [("Wedding", 0), ("Hiking", 2), ("Beach", 2)]
+
+
+@pytest.mark.django_db
+def test_add_lists_adds_none_if_one_is_already_on_the_trip(auth_client):
+	c, _ = auth_client
+	trip = _trip(c)
+	beach, hiking = _list_with_items(c, "Beach"), _list_with_items(c, "Hiking")
+	_add_list(c, trip, beach)
+
+	r = c.post(f"/api/trips/{trip['id']}/add-lists/", {"saved_lists": [hiking["id"], beach["id"]]}, format="json")
+
+	assert r.status_code == 400
+	assert r.data == {"saved_lists": ["Beach is already on this trip."]}
+	assert _section_names(c, trip) == [("Beach", 2)]
+
+
+@pytest.mark.django_db
+def test_add_lists_needs_your_own_lists_once_each(auth_client, other_client):
+	c, _ = auth_client
+	trip, beach = _trip(c), _list_with_items(c, "Beach")
+	adams = _list_with_items(other_client, "Adam's")
+	url = f"/api/trips/{trip['id']}/add-lists/"
+
+	for bad in [[], [adams["id"]], [beach["id"], beach["id"]], [999999], ["x"], "nope", None]:
+		assert c.post(url, {"saved_lists": bad}, format="json").status_code == 400, bad
+
+	assert _section_names(c, trip) == []
+
+
+@pytest.mark.django_db
+def test_add_lists_to_someone_elses_trip_404(auth_client, other_client):
+	c, _ = auth_client
+	trip = _trip(c)
+	adams = _list_with_items(other_client, "Adam's")
+
+	r = other_client.post(f"/api/trips/{trip['id']}/add-lists/", {"saved_lists": [adams["id"]]}, format="json")
+
+	assert r.status_code == 404
+	assert _section_names(c, trip) == []
+
+
+@pytest.mark.django_db
+def test_new_trip_can_start_with_lists(auth_client):
+	c, _ = auth_client
+	beach, hiking = _list_with_items(c, "Beach"), _list_with_items(c, "Hiking")
+
+	r = c.post("/api/trips/", {"name": "Lisbon", "saved_lists": [beach["id"], hiking["id"]]}, format="json")
+
+	assert r.status_code == 201
+	assert [(s["name"], len(s["items"])) for s in r.data["sections"]] == [("Beach", 2), ("Hiking", 2)]
+
+
+@pytest.mark.django_db
+def test_new_trip_with_a_bad_list_is_not_created(auth_client, other_client):
+	c, _ = auth_client
+	adams = _list_with_items(other_client, "Adam's")
+
+	r = c.post("/api/trips/", {"name": "Lisbon", "saved_lists": [adams["id"]]}, format="json")
+
+	assert r.status_code == 400
+	assert c.get("/api/trips/").data == []
+
+
 @pytest.mark.django_db
 def test_sections_belong_to_their_owner(auth_client, other_client):
 	c, _ = auth_client

@@ -7,12 +7,66 @@ TODAY = timezone.localdate()
 
 
 @pytest.mark.django_db
-def test_duplicate_truncates_long_name(auth_client):
+def test_duplicate_without_a_name_numbers_copy_of(auth_client, other_client):
 	c, _ = auth_client
-	trip = c.post("/api/trips/", {"name": "x" * 150}, format="json").data
-	copy = c.post(f"/api/trips/{trip['id']}/duplicate/").data
-	assert len(copy["name"]) == 150
-	assert copy["name"].startswith("Copy of ")
+	trip = c.post("/api/trips/", {"name": "Chicago"}, format="json").data
+	other_client.post("/api/trips/", {"name": "Copy of Chicago (2)"}, format="json")  # someone else's: no clash
+	url = f"/api/trips/{trip['id']}/duplicate/"
+
+	names = [c.post(url).data["name"] for _ in range(3)]
+
+	assert names == ["Copy of Chicago", "Copy of Chicago (2)", "Copy of Chicago (3)"]
+
+
+@pytest.mark.django_db
+def test_copy_name_is_offered_on_the_trip_and_fits(auth_client):
+	c, _ = auth_client
+	chicago = c.post("/api/trips/", {"name": "Chicago"}, format="json").data
+	c.post(f"/api/trips/{chicago['id']}/duplicate/")
+	long = c.post("/api/trips/", {"name": "x" * 150}, format="json").data
+	c.post(f"/api/trips/{long['id']}/duplicate/")
+
+	assert c.get(f"/api/trips/{chicago['id']}/").data["copy_name"] == "Copy of Chicago (2)"
+	second = c.get(f"/api/trips/{long['id']}/").data["copy_name"]
+	assert len(second) == 150
+	assert second.startswith("Copy of x") and second.endswith(" (2)")
+
+
+@pytest.mark.django_db
+def test_duplicate_cannot_reuse_a_trip_name(auth_client):
+	c, _ = auth_client
+	trip = c.post("/api/trips/", {"name": "Chicago"}, format="json").data
+	c.post("/api/trips/", {"name": "Porto"}, format="json")
+	url = f"/api/trips/{trip['id']}/duplicate/"
+
+	for taken in ["Chicago", "porto"]:
+		assert c.post(url, {"name": taken}, format="json").status_code == 400, taken
+
+	assert len(c.get("/api/trips/").data) == 2
+
+
+@pytest.mark.django_db
+def test_duplicate_takes_a_name_and_dates(auth_client):
+	c, _ = auth_client
+	trip = c.post("/api/trips/", {"name": "Chicago"}, format="json").data
+	body = {"name": "Chicago, March", "start_date": "2027-03-02", "end_date": "2027-03-04"}
+
+	r = c.post(f"/api/trips/{trip['id']}/duplicate/", body, format="json")
+
+	assert r.status_code == 201
+	assert (r.data["name"], r.data["start_date"], r.data["end_date"]) == ("Chicago, March", "2027-03-02", "2027-03-04")
+
+
+@pytest.mark.django_db
+def test_duplicate_with_bad_details_makes_no_copy(auth_client):
+	c, _ = auth_client
+	trip = c.post("/api/trips/", {"name": "Chicago"}, format="json").data
+	url = f"/api/trips/{trip['id']}/duplicate/"
+
+	for bad in [{"name": ""}, {"name": "x" * 151}, {"start_date": "2027-03-04", "end_date": "2027-03-02"}]:
+		assert c.post(url, bad, format="json").status_code == 400, bad
+
+	assert len(c.get("/api/trips/").data) == 1
 
 
 @pytest.mark.django_db

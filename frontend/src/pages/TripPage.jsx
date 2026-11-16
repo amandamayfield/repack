@@ -25,6 +25,7 @@ function TripDetail({ trip, reload }) {
   const navigate = useNavigate();
   const { confirm, prompt, dialog } = useDialog();
   const [editingTrip, setEditingTrip] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
   const [actionError, setActionError] = useState(null);
 
   // Local optimistic mirror of the fetched sections. Sync during render (not in an
@@ -198,16 +199,14 @@ function TripDetail({ trip, reload }) {
     );
   }
 
-  async function handleDuplicate() {
-    setActionError(null);
-    try {
-      const copy = await api(`/trips/${trip.id}/duplicate/`, {
-        method: "POST",
-      });
-      navigate(`/trips/${copy.id}`);
-    } catch {
-      setActionError("Couldn't duplicate this trip. Try again.");
-    }
+  // Errors propagate to TripForm, which shows them.
+  async function handleDuplicate(body) {
+    const copy = await api(`/trips/${trip.id}/duplicate/`, {
+      method: "POST",
+      body,
+    });
+    setDuplicating(false);
+    navigate(`/trips/${copy.id}`);
   }
 
   async function handleDeleteTrip() {
@@ -248,6 +247,22 @@ function TripDetail({ trip, reload }) {
             onCancel={() => setEditingTrip(false)}
           />
         </section>
+      ) : duplicating ? (
+        <section className="panel" aria-labelledby="duplicate-trip-title">
+          <h1 className="visually-hidden">{trip.name}</h1>
+          <h2 id="duplicate-trip-title">Duplicate this trip</h2>
+          <p>
+            The copy starts with nothing ticked, and brings in your saved lists
+            as they are now.
+          </p>
+          <TripForm
+            initial={{ name: trip.copy_name }}
+            idPrefix="duplicate-trip"
+            submitLabel="Make the copy"
+            onSubmit={handleDuplicate}
+            onCancel={() => setDuplicating(false)}
+          />
+        </section>
       ) : (
         <header className="trip-hero">
           <ProgressRing
@@ -274,7 +289,7 @@ function TripDetail({ trip, reload }) {
               <button
                 type="button"
                 className="button button--ghost button--small"
-                onClick={handleDuplicate}
+                onClick={() => setDuplicating(true)}
               >
                 Duplicate trip
               </button>

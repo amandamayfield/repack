@@ -1,10 +1,11 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, expect, test, vi } from "vitest";
 import TripsPage from "./TripsPage";
 import { AuthProvider } from "../auth/AuthProvider";
 import { api } from "../api/client";
+import { ApiError } from "../api/ApiError";
 
 vi.mock("../api/client", () => ({
   api: vi.fn(),
@@ -14,8 +15,11 @@ vi.mock("../api/client", () => ({
 function renderPage() {
   return render(
     <AuthProvider>
-      <MemoryRouter>
-        <TripsPage />
+      <MemoryRouter initialEntries={["/trips"]}>
+        <Routes>
+          <Route path="/trips" element={<TripsPage />} />
+          <Route path="/trips/:id" element={<h1>Trip page</h1>} />
+        </Routes>
       </MemoryRouter>
     </AuthProvider>,
   );
@@ -69,28 +73,21 @@ test("shows an empty state when there are no trips", async () => {
   expect(await screen.findByText(/No trips yet/)).toBeInTheDocument();
 });
 
-test("creating a trip posts name + dates and refetches the list", async () => {
-  const calls = [];
+// No trips yet; saved lists as given; creating a trip returns id 9.
+function createMock(lists = []) {
   api.mockImplementation((path, opts) => {
-    calls.push([path, opts]);
     if (path === "/auth/me/")
       return Promise.resolve({ id: 1, username: "amanda" });
     if (path === "/trips/" && opts?.method === "POST")
       return Promise.resolve({ id: 9 });
-    if (path === "/trips/") {
-      // first GET empty, subsequent GET (after reload) shows the new trip
-      const created = calls.some(
-        ([p, o]) => p === "/trips/" && o?.method === "POST",
-      );
-      return Promise.resolve(
-        created
-          ? [{ id: 9, name: "Yosemite", packed_count: 0, total_count: 0 }]
-          : [],
-      );
-    }
+    if (path === "/trips/") return Promise.resolve([]);
+    if (path === "/saved-lists/") return Promise.resolve(lists);
     return Promise.resolve(null);
   });
+}
 
+test("creating a trip posts name + dates and opens it", async () => {
+  createMock();
   renderPage();
   await screen.findByText(/No trips yet/);
 
@@ -105,15 +102,64 @@ test("creating a trip posts name + dates and refetches the list", async () => {
   );
   await userEvent.click(screen.getByRole("button", { name: "Add trip" }));
 
-  await waitFor(() =>
-    expect(api).toHaveBeenCalledWith("/trips/", {
-      method: "POST",
-      body: {
-        name: "Yosemite",
-        start_date: "2026-07-01",
-        end_date: "2026-07-03",
-      },
-    }),
+  expect(
+    await screen.findByRole("heading", { name: "Trip page" }),
+  ).toBeInTheDocument();
+  expect(api).toHaveBeenCalledWith("/trips/", {
+    method: "POST",
+    body: {
+      name: "Yosemite",
+      start_date: "2026-07-01",
+      end_date: "2026-07-03",
+    },
+  });
+});
+
+test("saved lists ticked on the new trip form are added with it", async () => {
+  createMock([
+    { id: 98, name: "Beach" },
+    { id: 97, name: "Hiking" },
+  ]);
+  renderPage();
+  await screen.findByText(/No trips yet/);
+
+  await userEvent.type(screen.getByLabelText("Trip name"), "Lisbon");
+  await userEvent.click(
+    await screen.findByRole("checkbox", { name: "Hiking" }),
   );
-  expect(await screen.findByText("Yosemite")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Add trip" }));
+
+  await screen.findByRole("heading", { name: "Trip page" });
+  expect(api).toHaveBeenCalledWith("/trips/", {
+    method: "POST",
+    body: { name: "Lisbon", saved_lists: [97] },
+  });
+});
+
+test("with no saved lists, the new trip form has no list picker", async () => {
+  createMock([]);
+  renderPage();
+  await screen.findByText(/No trips yet/);
+
+  expect(screen.queryByRole("group")).not.toBeInTheDocument();
+});
+
+test("a trip name you already use shows why and stays on the form", async () => {
+  const message =
+    'You already have a trip called "Lisbon". Trip names can\'t match, so pick another.';
+  createMock();
+  const created = api.getMockImplementation();
+  api.mockImplementation((path, opts) =>
+    path === "/trips/" && opts?.method === "POST"
+      ? Promise.reject(new ApiError(400, { name: [message] }))
+      : created(path, opts),
+  );
+  renderPage();
+  await screen.findByText(/No trips yet/);
+
+  await userEvent.type(screen.getByLabelText("Trip name"), "Lisbon");
+  await userEvent.click(screen.getByRole("button", { name: "Add trip" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(message);
+  expect(screen.getByLabelText("Trip name")).toHaveValue("Lisbon");
 });

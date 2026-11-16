@@ -94,10 +94,25 @@ def catch_up_trip(trip):
 		_renumber(section)
 
 
-def duplicate_trip(trip):
-	"""A fresh, undated, unticked copy. Synced sections are rebuilt from their lists as they are now,
-	keeping this trip's own amounts and deletions; everything else is copied."""
-	copy = Trip.objects.create(user=trip.user, name=f"Copy of {trip.name}"[:150])
+def copy_name(trip):
+	"""The first free "Copy of <name>", then "(2)", "(3)"…, cut to fit the 150-character limit. Trip names are
+	unique per user, ignoring case."""
+	taken = {n.casefold() for n in Trip.objects.filter(user=trip.user).values_list("name", flat=True)}
+	base = f"Copy of {trip.name}"
+	number = 1
+	while True:
+		suffix = "" if number == 1 else f" ({number})"
+		name = base[: 150 - len(suffix)] + suffix
+		if name.casefold() not in taken:
+			return name
+		number += 1
+
+
+def duplicate_trip(trip, name=None, start_date=None, end_date=None):
+	"""A fresh, unticked copy, named and dated as given (the next free "Copy of …" if no name). Synced sections
+	are rebuilt from their lists as they are now, keeping this trip's own amounts and deletions; everything else
+	is copied."""
+	copy = Trip.objects.create(user=trip.user, name=name or copy_name(trip), start_date=start_date, end_date=end_date)
 	for section in trip.sections.prefetch_related("items"):
 		new = TripSection.objects.create(
 			trip=copy, saved_list=section.saved_list, custom_name=section.custom_name, order=section.order

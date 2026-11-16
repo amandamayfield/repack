@@ -25,6 +25,43 @@ def next_order(siblings):
 	return 0 if current_max is None else current_max + 1
 
 
+def copy_list_items(section, saved_list):
+	TripItem.objects.bulk_create(
+		[
+			TripItem(
+				section=section,
+				source_item=src,
+				from_list=True,
+				name=src.name,
+				quantity=src.quantity,
+				order=i,
+			)
+			for i, src in enumerate(saved_list.items.all())
+		]
+	)
+
+
+def lists_to_add(request, trip=None):
+	"""The user's saved lists named by `saved_lists`, in the order given. Any bad id is a 400 for them all."""
+	ids = request.data.get("saved_lists")
+	valid = isinstance(ids, list) and ids and all(isinstance(i, int) for i in ids) and len(set(ids)) == len(ids)
+	lists = SavedList.objects.filter(user=request.user).in_bulk(ids) if valid else {}
+	if not valid or len(lists) != len(ids):
+		raise serializers.ValidationError({"saved_lists": ["Pick one or more of your saved lists, once each."]})
+	if trip is not None:
+		on_trip = trip.sections.filter(saved_list__in=ids).select_related("saved_list").first()
+		if on_trip is not None:
+			raise serializers.ValidationError({"saved_lists": [f"{on_trip.saved_list.name} is already on this trip."]})
+	return [lists[i] for i in ids]
+
+
+def add_list_sections(trip, saved_lists):
+	start = next_order(trip.sections.all())
+	for offset, saved_list in enumerate(saved_lists):
+		section = TripSection.objects.create(trip=trip, saved_list=saved_list, order=start + offset)
+		copy_list_items(section, saved_list)
+
+
 class OwnedModelViewSet(viewsets.ModelViewSet):
 	"""Base class: scope every query to the current user, and stamp
 	the current user as owner whenever something is created."""
@@ -110,6 +147,12 @@ class TripViewSet(OwnedModelViewSet):
 			qs = qs.prefetch_related("sections__saved_list", "sections__items")
 		return qs
 
+	def perform_create(self, serializer):
+		saved_lists = lists_to_add(self.request) if "saved_lists" in self.request.data else []
+		with transaction.atomic():
+			trip = serializer.save(user=self.request.user)
+			add_list_sections(trip, saved_lists)
+
 	@transaction.atomic
 	def perform_update(self, serializer):
 		was_current = sync.is_current(serializer.instance)
@@ -133,6 +176,20 @@ class TripViewSet(OwnedModelViewSet):
 		TripSection.objects.bulk_update(sections.values(), ["order"])
 		return Response(status=status.HTTP_204_NO_CONTENT)
 
+	@action(detail=True, methods=["post"], url_path="add-lists")
+	def add_lists(self, request, pk=None):
+		trip = self.get_object()
+		saved_lists = lists_to_add(request, trip)
+		try:
+			with transaction.atomic():
+				add_list_sections(trip, saved_lists)
+		except IntegrityError:
+			# Two adds of the same list racing past lists_to_add(), e.g. a double click.
+			raise serializers.ValidationError(
+				{"saved_lists": ["One of those lists is already on this trip."]}
+			) from None
+		return Response(status=status.HTTP_204_NO_CONTENT)
+
 	@action(detail=True, methods=["post"], url_path="untick-all")
 	def untick_all(self, request, pk=None):
 		trip = self.get_object()
@@ -148,8 +205,11 @@ class TripViewSet(OwnedModelViewSet):
 	@action(detail=True, methods=["post"])
 	def duplicate(self, request, pk=None):
 		trip = self.get_object()
+		# Same rules as editing a trip; every field is optional.
+		details = TripDetailSerializer(data=request.data, partial=True, context={"request": request})
+		details.is_valid(raise_exception=True)
 		with transaction.atomic():
-			copy = sync.duplicate_trip(trip)
+			copy = sync.duplicate_trip(trip, **details.validated_data)
 		return Response(TripDetailSerializer(copy, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
@@ -171,19 +231,7 @@ class TripSectionViewSet(viewsets.ModelViewSet):
 			with transaction.atomic():
 				section = serializer.save(order=next_order(trip.sections.all()))
 				if saved_list is not None:
-					TripItem.objects.bulk_create(
-						[
-							TripItem(
-								section=section,
-								source_item=src,
-								from_list=True,
-								name=src.name,
-								quantity=src.quantity,
-								order=i,
-							)
-							for i, src in enumerate(saved_list.items.all())
-						]
-					)
+					copy_list_items(section, saved_list)
 		except IntegrityError:
 			# Two adds of the same list racing past validate(), e.g. a double click.
 			raise serializers.ValidationError({"saved_list": ["This list is already on this trip."]}) from None

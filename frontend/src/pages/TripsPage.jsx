@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { useFetch } from "../hooks/useFetch";
 import { formatDateRange } from "../lib/dates";
@@ -6,7 +6,9 @@ import ProgressBar from "../components/ProgressBar";
 import TripForm from "../components/TripForm";
 
 export default function TripsPage() {
-  const { data: trips, loading, error, reload } = useFetch("/trips/");
+  const navigate = useNavigate();
+  const { data: trips, loading, error } = useFetch("/trips/");
+  const { data: lists } = useFetch("/saved-lists/");
 
   return (
     <section className="page trips-page">
@@ -18,9 +20,10 @@ export default function TripsPage() {
         <h2>New trip</h2>
         <TripForm
           submitLabel="Add trip"
+          lists={lists}
           onSubmit={async (body) => {
-            await api("/trips/", { method: "POST", body });
-            reload();
+            const trip = await api("/trips/", { method: "POST", body });
+            navigate(`/trips/${trip.id}`);
           }}
         />
       </section>

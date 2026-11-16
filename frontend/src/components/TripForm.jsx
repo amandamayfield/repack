@@ -1,18 +1,22 @@
 import { useState } from "react";
 import { errorMessage } from "../api/ApiError";
+import ListChecklist from "./ListChecklist";
 
 // Create/edit form for a trip's name and optional dates. Without `onCancel` it's
-// in create mode and clears itself after a successful save.
+// in create mode and clears itself after a successful save. Given `lists`, it
+// also offers saved lists to start the trip with.
 export default function TripForm({
   initial = {},
   onSubmit,
   onCancel,
   submitLabel = "Save",
   idPrefix = "trip",
+  lists,
 }) {
   const [name, setName] = useState(initial.name ?? "");
   const [startDate, setStartDate] = useState(initial.start_date ?? "");
   const [endDate, setEndDate] = useState(initial.end_date ?? "");
+  const [selectedLists, setSelectedLists] = useState([]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(null);
 
@@ -27,11 +31,13 @@ export default function TripForm({
       // Editing sends null to clear a date; creating just leaves it out.
       if (startDate !== "" || onCancel) body.start_date = startDate || null;
       if (endDate !== "" || onCancel) body.end_date = endDate || null;
+      if (selectedLists.length > 0) body.saved_lists = selectedLists;
       await onSubmit(body);
       if (!onCancel) {
         setName("");
         setStartDate("");
         setEndDate("");
+        setSelectedLists([]);
       }
     } catch (err) {
       setError(errorMessage(err, "Couldn't save the trip. Try again."));
@@ -79,6 +85,16 @@ export default function TripForm({
           disabled={pending}
         />
       </div>
+
+      {lists?.length > 0 && (
+        <ListChecklist
+          legend="Add your saved lists (optional)"
+          lists={lists}
+          selected={selectedLists}
+          onChange={setSelectedLists}
+          disabled={pending}
+        />
+      )}
 
       <div className="form__actions">
         <button

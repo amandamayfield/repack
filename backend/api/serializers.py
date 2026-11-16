@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from . import sync
 from .models import SavedList, SavedListItem, Trip, TripItem, TripSection
 
 
@@ -123,10 +124,25 @@ class TripListSerializer(serializers.ModelSerializer):
 
 class TripDetailSerializer(serializers.ModelSerializer):
 	sections = TripSectionSerializer(many=True, read_only=True)
+	# What Duplicate offers as the copy's name.
+	copy_name = serializers.SerializerMethodField()
 
 	class Meta:
 		model = Trip
-		fields = ["id", "name", "start_date", "end_date", "sections", "created_at", "updated_at"]
+		fields = ["id", "name", "start_date", "end_date", "sections", "copy_name", "created_at", "updated_at"]
+
+	def get_copy_name(self, trip):
+		return sync.copy_name(trip)
+
+	def validate_name(self, value):
+		clashes = Trip.objects.filter(user=self.context["request"].user, name__iexact=value)
+		if self.instance is not None:
+			clashes = clashes.exclude(pk=self.instance.pk)
+		if clashes.exists():
+			raise serializers.ValidationError(
+				f'You already have a trip called "{value}". Trip names can\'t match, so pick another.'
+			)
+		return value
 
 	def validate(self, attrs):
 		# On PATCH only one date may be sent; compare against the stored other one.

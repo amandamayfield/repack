@@ -45,7 +45,7 @@ React 19 (Vite) → Django 5.2 + DRF → PostgreSQL 16
 ### Data model
 - **SavedList**: `{user, name, description, created_at, updated_at}`, with many `items`.
 - **SavedListItem**: `{saved_list, name, quantity?, order}`. It has no `packed` field and can't move to another list.
-- **Trip**: `{user, name, start_date?, end_date?, created_at, updated_at}`. `end_date >= start_date` is validated.
+- **Trip**: `{user, name, start_date?, end_date?, created_at, updated_at}`. `end_date >= start_date` is validated. Names are unique per user, ignoring case, on create, edit and duplicate (a 400 on `name`).
 - **TripSection**: `{trip, saved_list?, custom_name, order}`. `saved_list` null means trip-only. One section per list per trip (unique constraint). `display_name` is `custom_name`, else the list's name, else "Deleted list".
 - **TripItem**: `{section, source_item?, from_list, name, quantity?, packed, quantity_overridden, removed, order}`.
   - `from_list` marks a synced item; `False` is a trip-only extra. Use it, not `source_item is None`, which also happens when a past trip's list item was deleted.
@@ -58,7 +58,7 @@ React 19 (Vite) → Django 5.2 + DRF → PostgreSQL 16
 - List item added → appended after the section's synced items, before extras. Renamed → renamed and unticked. Amount changed → updated and unticked, unless the trip set its own amount (`quantity_overridden`), which wins and keeps its tick. Deleted → removed from current trips.
 - List renamed → past sections keep the old name. List deleted → removed from current trips; past trips keep it as a trip-only section whose items become extras.
 - A trip whose end date moves from past to current catches up (`catch_up_trip`).
-- Duplicate trip rebuilds synced sections from the list as it is now, then reapplies the trip's own amounts and deletions; extras and trip-only sections are copied; nothing is ticked; no dates.
+- Duplicate trip rebuilds synced sections from the list as it is now, then reapplies the trip's own amounts and deletions; extras and trip-only sections are copied; nothing is ticked. The copy takes the name and dates it's given; with no name it's the next free "Copy of …", then "(2)", "(3)"… (`sync.copy_name`, also sent as the detail's `copy_name` for the form to prefill).
 
 ### API (all under `/api/`)
 
@@ -82,7 +82,8 @@ Trip sections:
 - `POST trip-sections/` with `{trip, saved_list}` copies the list in; with `{trip, name}` makes a trip-only heading. The same list twice on one trip is a **400** `{saved_list: ["This list is already on this trip."]}`.
 - `PATCH {name}` renames on this trip only (blank restores the list's name on a synced section). `trip` and `saved_list` can't change. `DELETE` removes the section and its items; adding the list again gives a fresh copy.
 - `POST trips/{id}/reorder-sections/` with `{section_ids}` → 204: every section of the trip, once each, else 400.
-- `POST trips/{id}/duplicate/` → 201 with the copy's detail.
+- `POST trips/{id}/duplicate/` with optional `{name, start_date, end_date}` (validated like a trip edit) → 201 with the copy's detail.
+- `POST trips/{id}/add-lists/` with `{saved_lists}` → 204. Adds a synced section per list, in the order given, all or none: any id that isn't the user's, a repeat, or a list already on the trip is a 400. `POST trips/` accepts the same `saved_lists` to start a trip with them.
 - `POST trips/{id}/untick-all/` → 204. Unticks every item on the trip, or only one section's with `{section}` (a section of another trip is a 400). Removed items are left alone.
 
 Trip items (`trip-items/`):
@@ -99,12 +100,13 @@ Trip items (`trip-items/`):
   - `AuthProvider` exposes `signOutReason`: `"expired"` (a 401 while signed in), `"logout"`, or `null`. `RequireAuth` passes `state.from` unless the user logged out, and `LoginPage` returns there after sign-in and shows "You were signed out" on expiry. Sessions renew on every request (`SESSION_SAVE_EVERY_REQUEST`).
 - **Routes** (`App.jsx`):
   - `/login`
-  - `/trips` (luggage-tag cards with a progress bar)
-  - `/trips/:id` (progress ring hero; sections with Hide/Show, rename, move, remove, items and their own Add item form; "Add a section" picks a saved list or makes a heading; duplicate/edit/delete trip)
+  - `/trips` (luggage-tag cards with a progress bar; the New trip form can tick saved lists, then opens the trip)
+  - `/trips/:id` (progress ring hero; sections with Hide/Show, rename, move, remove, items and their own Add item form; "Add a section" ticks any number of saved lists or makes a heading; duplicate (asks for a name and dates)/edit/delete trip)
   - `/lists`, `/lists/:id` (editor, edit details)
 - **Shared components:**
   - `ItemRow`: view, inline edit and delete; it renders the checkbox only when given `onToggle`. Amounts show as `×3`, read aloud as ", quantity 3".
   - `ItemForm`, `TripForm`, `ListForm`: create mode when there's no `onCancel`, edit mode with it. `lockName` on `ItemForm`/`ItemRow` limits a synced trip item's edit to its amount.
+  - `ListChecklist`: checkboxes for picking saved lists, used by `TripForm` (given `lists`) and `AddSectionForm`.
   - `TripSection` and `AddSectionForm` (trip page). `TripSection` remembers Hide/Show per browser in `localStorage` (`repack.section-collapsed.<id>`).
   - `ProgressBar` (dashboard) and `ProgressRing` (trip page). Both use `role="progressbar"`; only the ring shows "All packed" at 100%.
 - **`hooks/useDialog.jsx`**: `const { confirm, alert, prompt, dialog } = useDialog()`, then `await confirm({title, message, confirmLabel})`; `prompt` resolves to the text or `null`. It renders `components/Dialog.jsx`, a native `<dialog>`. **Use it in place of `window.confirm` / `window.alert`.**
@@ -130,6 +132,6 @@ Trip items (`trip-items/`):
 - **Tests:**
   - Backend tests need the Postgres container (`docker compose up -d db`). Shared fixtures (`client_for`, `auth_client`, `other_client`) are in `api/tests/conftest.py`.
   - Frontend tests mock `api/client` as `{ api: vi.fn(), setUnauthorizedHandler: vi.fn() }`; reject with `new ApiError(status, body)`.
-  - Dropdown options load in their own requests, so **wait for an option** (`findAllByRole("option", …)`) before `selectOptions`, or the test will be flaky.
+  - Saved-list checkboxes load in their own request, so **wait for one** (`findByRole("checkbox", { name: … })`) before clicking it, or the test will be flaky.
   - `src/test/setup.js` polyfills `<dialog>` for jsdom, and restores jsdom's `localStorage` when Node 25+'s own experimental one shadows it.
 - **CI:** none is set up yet.

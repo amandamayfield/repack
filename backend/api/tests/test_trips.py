@@ -86,3 +86,28 @@ def test_delete_own_trip_removes_its_items(auth_client, other_client):
 	assert other_client.delete(f"/api/trips/{trip['id']}/").status_code == 404
 	assert c.delete(f"/api/trips/{trip['id']}/").status_code == 204
 	assert c.get("/api/trip-items/").data == []
+
+
+@pytest.mark.django_db
+def test_trip_names_must_be_unique_for_you(auth_client, other_client):
+	c, _ = auth_client
+	c.post("/api/trips/", {"name": "Chicago"}, format="json")
+	other_client.post("/api/trips/", {"name": "Lisbon"}, format="json")
+
+	r = c.post("/api/trips/", {"name": "  chicago "}, format="json")
+
+	assert r.status_code == 400
+	assert r.data == {"name": ['You already have a trip called "chicago". Trip names can\'t match, so pick another.']}
+	assert c.post("/api/trips/", {"name": "Lisbon"}, format="json").status_code == 201
+	assert len(c.get("/api/trips/").data) == 2
+
+
+@pytest.mark.django_db
+def test_renaming_a_trip_to_another_trips_name_400(auth_client):
+	c, _ = auth_client
+	c.post("/api/trips/", {"name": "Chicago"}, format="json")
+	porto = c.post("/api/trips/", {"name": "Porto"}, format="json").data
+
+	assert c.patch(f"/api/trips/{porto['id']}/", {"name": "CHICAGO"}, format="json").status_code == 400
+	# Saving a trip under its own name isn't a clash.
+	assert c.patch(f"/api/trips/{porto['id']}/", {"name": "Porto", "end_date": None}, format="json").status_code == 200
