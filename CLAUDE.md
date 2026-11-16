@@ -96,6 +96,7 @@ Trip items (`trip-items/`):
   - Sends cookies, and fetches the CSRF cookie only if it's missing.
   - Throws an `ApiError` (`api/ApiError.js`) with `.status`, `.body` and `.messages()`. `errorMessage(err, fallback)` turns a 400 into the server's messages.
   - On any 401 it calls the handler `AuthProvider` registers via `setUnauthorizedHandler`, which clears the user so `RequireAuth` redirects to `/login`. **Pages never handle 401 themselves.**
+  - `AuthProvider` exposes `signOutReason`: `"expired"` (a 401 while signed in), `"logout"`, or `null`. `RequireAuth` passes `state.from` unless the user logged out, and `LoginPage` returns there after sign-in and shows "You were signed out" on expiry. Sessions renew on every request (`SESSION_SAVE_EVERY_REQUEST`).
 - **Routes** (`App.jsx`):
   - `/login`
   - `/trips` (luggage-tag cards with a progress bar)

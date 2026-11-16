@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/authContext";
 
 // api() throws an ApiError. A 400 on login means bad credentials; on register
@@ -19,7 +19,8 @@ function messageForError(err, mode) {
 }
 
 export default function LoginPage() {
-  const { user, login, register } = useAuth();
+  const { user, signOutReason, login, register } = useAuth();
+  const from = useLocation().state?.from;
   const [mode, setMode] = useState("login"); // "login" | "register"
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -27,8 +28,12 @@ export default function LoginPage() {
   const [error, setError] = useState(null);
   const [pending, setPending] = useState(false);
 
-  // Already authenticated (incl. right after a successful submit): skip the form.
-  if (user) return <Navigate to="/trips" replace />;
+  // Already authenticated (incl. right after a successful submit): skip the form,
+  // back to the page RequireAuth sent them from, if any.
+  if (user) {
+    const to = from ? `${from.pathname}${from.search}` : "/trips";
+    return <Navigate to={to} replace />;
+  }
 
   const isLogin = mode === "login";
 
@@ -57,6 +62,13 @@ export default function LoginPage() {
   return (
     <main className="auth-page">
       <h1>{isLogin ? "Sign in" : "Create account"}</h1>
+
+      {signOutReason === "expired" && (
+        <p role="status" className="form-notice">
+          You were signed out. Please sign in again, and you'll go back to where
+          you were.
+        </p>
+      )}
 
       <form onSubmit={handleSubmit} noValidate>
         {error && (

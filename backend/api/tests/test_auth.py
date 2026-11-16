@@ -36,6 +36,18 @@ def test_logout_clears_session():
 
 
 @pytest.mark.django_db
+def test_using_the_app_renews_the_session():
+	# Re-sending the cookie on every request restarts its two-week expiry, so a
+	# regular user isn't signed out mid-use.
+	c = APIClient()
+	c.post("/api/auth/register/", {"username": "amanda", "password": "pw12345!"}, format="json")
+	c.post("/api/auth/login/", {"username": "amanda", "password": "pw12345!"}, format="json")
+	r = c.get("/api/trips/")
+	assert r.status_code == 200
+	assert "sessionid" in r.cookies
+
+
+@pytest.mark.django_db
 def test_register_rejects_weak_password():
 	c = APIClient()
 	r = c.post("/api/auth/register/", {"username": "amanda", "password": "a"}, format="json")

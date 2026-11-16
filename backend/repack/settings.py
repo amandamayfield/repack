@@ -36,6 +36,8 @@ CSRF_TRUSTED_ORIGINS = env.list(
 SECURE = env.bool("DJANGO_SECURE", default=not DEBUG)
 SECURE_SSL_REDIRECT = SECURE
 SESSION_COOKIE_SECURE = SECURE
+# Restart the two-week session expiry on every request, so active users stay signed in.
+SESSION_SAVE_EVERY_REQUEST = True
 CSRF_COOKIE_SECURE = SECURE
 SECURE_HSTS_SECONDS = 3600 if SECURE else 0
 
