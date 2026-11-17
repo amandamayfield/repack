@@ -564,6 +564,11 @@ select:focus-visible {
 
 /* ---------- Trip sections & items ---------- */
 
+.trip-view-options {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .trip-sections {
   display: grid;
   gap: var(--space-6);

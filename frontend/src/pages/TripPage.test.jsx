@@ -579,6 +579,101 @@ test("hiding still works when the browser blocks storage", async () => {
   ).not.toBeInTheDocument();
 });
 
+// --- Hide packed items ---
+
+test("hiding packed items leaves only what's left, and counts keep the full totals", async () => {
+  baseMock();
+  renderTrip();
+  await loaded();
+
+  await userEvent.click(
+    screen.getByRole("button", { name: "Hide packed items" }),
+  );
+
+  const camping = section("Camping");
+  expect(
+    within(camping).queryByRole("checkbox", { name: "Tent" }),
+  ).not.toBeInTheDocument();
+  expect(within(camping).getAllByRole("checkbox")).toHaveLength(2);
+  expect(within(camping).getByText("1/3 packed")).toBeInTheDocument();
+  expect(
+    within(camping).getByText("1 packed item hidden."),
+  ).toBeInTheDocument();
+  // Nothing packed in Wedding, so no note there.
+  expect(
+    within(section("Wedding")).queryByText(/hidden/),
+  ).not.toBeInTheDocument();
+
+  await userEvent.click(
+    screen.getByRole("button", { name: "Show packed items" }),
+  );
+  expect(within(section("Camping")).getAllByRole("checkbox")).toHaveLength(3);
+  expect(screen.queryByText(/packed item hidden/)).not.toBeInTheDocument();
+});
+
+test("ticking an item while packed items are hidden hides it and moves focus to the note", async () => {
+  baseMock();
+  renderTrip();
+  await loaded();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Hide packed items" }),
+  );
+
+  await userEvent.click(screen.getByRole("checkbox", { name: /Socks/ }));
+
+  const camping = section("Camping");
+  expect(
+    within(camping).queryByRole("checkbox", { name: /Socks/ }),
+  ).not.toBeInTheDocument();
+  const note = within(camping).getByText("2 packed items hidden.");
+  expect(note).toHaveFocus();
+  expect(within(camping).getByText("2/3 packed")).toBeInTheDocument();
+});
+
+test("a fully packed section says so when packed items are hidden", async () => {
+  baseMock({ trip: PACKED_TRIP });
+  renderTrip();
+  await loaded();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Hide packed items" }),
+  );
+
+  const wedding = section("Wedding");
+  expect(within(wedding).queryByRole("checkbox")).not.toBeInTheDocument();
+  expect(
+    within(wedding).getByText("Everything here is packed."),
+  ).toBeInTheDocument();
+  expect(within(wedding).queryByText("No items yet.")).not.toBeInTheDocument();
+});
+
+test("hiding packed items is remembered for this trip", async () => {
+  baseMock();
+  const first = renderTrip();
+  await loaded();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Hide packed items" }),
+  );
+  first.unmount();
+
+  renderTrip();
+  await loaded();
+
+  expect(
+    screen.getByRole("button", { name: "Show packed items" }),
+  ).toBeInTheDocument();
+  expect(localStorage.getItem("repack.hide-packed.5")).toBe("1");
+});
+
+test("an empty trip has no Hide packed items button", async () => {
+  baseMock({ trip: { ...TRIP, sections: [] } });
+  renderTrip();
+  await loaded();
+
+  expect(
+    screen.queryByRole("button", { name: "Hide packed items" }),
+  ).not.toBeInTheDocument();
+});
+
 // --- Items in sections ---
 
 test("adding an item under a section posts to that section", async () => {

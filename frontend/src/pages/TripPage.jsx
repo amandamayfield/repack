@@ -5,6 +5,7 @@ import { useDialog } from "../hooks/useDialog";
 import { useFetch } from "../hooks/useFetch";
 import { computeProgress } from "../lib/progress";
 import { formatDateRange } from "../lib/dates";
+import { readFlag, writeFlag } from "../lib/remember";
 import ProgressRing from "../components/ProgressRing";
 import TripForm from "../components/TripForm";
 import TripSection from "../components/TripSection";
@@ -27,6 +28,8 @@ function TripDetail({ trip, reload }) {
   const [editingTrip, setEditingTrip] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const [actionError, setActionError] = useState(null);
+  const hidePackedKey = `repack.hide-packed.${trip.id}`;
+  const [hidePacked, setHidePacked] = useState(() => readFlag(hidePackedKey));
 
   // Local optimistic mirror of the fetched sections. Sync during render (not in an
   // effect) whenever a fresh trip arrives — the documented pattern for adjusting
@@ -50,6 +53,11 @@ function TripDetail({ trip, reload }) {
         ),
       })),
     );
+  }
+
+  function toggleHidePacked() {
+    setHidePacked(!hidePacked);
+    writeFlag(hidePackedKey, !hidePacked);
   }
 
   async function handleToggle(item, packed) {
@@ -324,24 +332,36 @@ function TripDetail({ trip, reload }) {
           below.
         </p>
       ) : (
-        <div className="trip-sections">
-          {sections.map((section, index) => (
-            <TripSection
-              key={section.id}
-              section={section}
-              isFirst={index === 0}
-              isLast={index === sections.length - 1}
-              onToggle={handleToggle}
-              onUntickAll={handleUntickAll}
-              onRename={handleRename}
-              onMove={handleMove}
-              onRemove={handleRemove}
-              onAddItem={handleAddItem}
-              onSaveItem={handleSaveItem}
-              onDeleteItem={handleDeleteItem}
-            />
-          ))}
-        </div>
+        <>
+          <div className="trip-view-options">
+            <button
+              type="button"
+              className="button button--ghost button--small"
+              onClick={toggleHidePacked}
+            >
+              {hidePacked ? "Show packed items" : "Hide packed items"}
+            </button>
+          </div>
+          <div className="trip-sections">
+            {sections.map((section, index) => (
+              <TripSection
+                key={section.id}
+                section={section}
+                isFirst={index === 0}
+                isLast={index === sections.length - 1}
+                hidePacked={hidePacked}
+                onToggle={handleToggle}
+                onUntickAll={handleUntickAll}
+                onRename={handleRename}
+                onMove={handleMove}
+                onRemove={handleRemove}
+                onAddItem={handleAddItem}
+                onSaveItem={handleSaveItem}
+                onDeleteItem={handleDeleteItem}
+              />
+            ))}
+          </div>
+        </>
       )}
 
       <AddSectionForm

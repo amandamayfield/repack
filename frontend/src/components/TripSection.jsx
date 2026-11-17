@@ -1,26 +1,8 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { computeProgress } from "../lib/progress";
+import { readFlag, writeFlag } from "../lib/remember";
 import ItemForm from "./ItemForm";
 import ItemRow from "./ItemRow";
-
-// Whether a section is hidden is remembered per browser. Storage can be blocked
-// (some private windows); hiding then still works, it just isn't remembered.
-function readHidden(key) {
-  try {
-    return localStorage.getItem(key) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function writeHidden(key, hidden) {
-  try {
-    if (hidden) localStorage.setItem(key, "1");
-    else localStorage.removeItem(key);
-  } catch {
-    // Not remembered; see readHidden.
-  }
-}
 
 // One headed section of a trip: a synced saved list or a trip-only heading.
 // The trip page owns every request; this only lays the section out.
@@ -28,6 +10,7 @@ export default function TripSection({
   section,
   isFirst,
   isLast,
+  hidePacked,
   onToggle,
   onUntickAll,
   onRename,
@@ -40,12 +23,30 @@ export default function TripSection({
   const headingId = useId();
   const bodyId = useId();
   const storageKey = `repack.section-collapsed.${section.id}`;
-  const [hidden, setHidden] = useState(() => readHidden(storageKey));
+  const [hidden, setHidden] = useState(() => readFlag(storageKey));
   const progress = computeProgress(section.items);
+  const shownItems = hidePacked
+    ? section.items.filter((item) => !item.packed)
+    : section.items;
+  const hiddenCount = section.items.length - shownItems.length;
+
+  // Ticking an item while packed items are hidden unmounts its checkbox, which
+  // would drop keyboard focus to <body>. Hand it to the note that says where it went.
+  const noteRef = useRef(null);
+  const focusNote = useRef(false);
+  useEffect(() => {
+    if (focusNote.current && noteRef.current) noteRef.current.focus();
+    focusNote.current = false;
+  });
 
   function toggleHidden() {
     setHidden(!hidden);
-    writeHidden(storageKey, !hidden);
+    writeFlag(storageKey, !hidden);
+  }
+
+  function handleToggle(item, packed) {
+    if (hidePacked && packed) focusNote.current = true;
+    onToggle(item, packed);
   }
 
   return (
@@ -117,18 +118,27 @@ export default function TripSection({
         {section.items.length === 0 ? (
           <p className="trip-section__empty">No items yet.</p>
         ) : (
-          <ul className="item-list">
-            {section.items.map((item) => (
-              <ItemRow
-                key={item.id}
-                item={item}
-                lockName={item.is_synced}
-                onToggle={onToggle}
-                onSave={(body) => onSaveItem(item, body)}
-                onDelete={() => onDeleteItem(item)}
-              />
-            ))}
-          </ul>
+          shownItems.length > 0 && (
+            <ul className="item-list">
+              {shownItems.map((item) => (
+                <ItemRow
+                  key={item.id}
+                  item={item}
+                  lockName={item.is_synced}
+                  onToggle={handleToggle}
+                  onSave={(body) => onSaveItem(item, body)}
+                  onDelete={() => onDeleteItem(item)}
+                />
+              ))}
+            </ul>
+          )
+        )}
+        {hiddenCount > 0 && (
+          <p ref={noteRef} tabIndex={-1} className="trip-section__empty">
+            {shownItems.length === 0
+              ? "Everything here is packed."
+              : `${hiddenCount} packed ${hiddenCount === 1 ? "item" : "items"} hidden.`}
+          </p>
         )}
 
         <ItemForm
