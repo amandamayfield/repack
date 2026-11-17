@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { errorMessage } from "../api/ApiError";
 
 // Shared add/edit form for an item on a saved list or a trip. The parent adds
@@ -20,6 +20,7 @@ export default function ItemForm({
   );
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(null);
+  const nameInput = useRef(null);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -36,6 +37,8 @@ export default function ItemForm({
         // Add mode (no cancel handler) reuses the form, so reset it.
         setName("");
         setQuantity("");
+        // Clicking Add moved focus to the button; bring it back for the next item.
+        nameInput.current.focus();
       }
     } catch (err) {
       // A 401 is handled globally (redirect to login); anything else is shown here.
@@ -58,12 +61,14 @@ export default function ItemForm({
         <div className="field field--grow">
           <label htmlFor={`${idPrefix}-name`}>Item name</label>
           <input
+            ref={nameInput}
             id={`${idPrefix}-name`}
             type="text"
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            disabled={pending}
+            // Not disabled: that drops focus, and the submit button already blocks a second save.
+            readOnly={pending}
           />
         </div>
       )}
@@ -73,10 +78,11 @@ export default function ItemForm({
         <input
           id={`${idPrefix}-qty`}
           type="number"
+          inputMode="numeric"
           min="1"
           value={quantity}
           onChange={(e) => setQuantity(e.target.value)}
-          disabled={pending}
+          readOnly={pending}
         />
       </div>
 
