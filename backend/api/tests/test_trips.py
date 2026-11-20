@@ -1,10 +1,12 @@
+from datetime import timedelta
+
 import pytest
 from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
 
 from api.models import Trip, TripSection
 from api.serializers import TripDetailSerializer
-from api.tests.dates import UPCOMING
+from api.tests.dates import TODAY, UPCOMING
 
 
 def _section(trip):
@@ -183,3 +185,25 @@ def test_renaming_a_trip_that_loses_the_name_race_400(auth_client, lost_race):
 	assert r.status_code == 400
 	assert r.data == {"name": ['You already have a trip called "Chicago". Trip names can\'t match, so pick another.']}
 	assert c.get(f"/api/trips/{porto['id']}/").data["name"] == "Porto"
+
+
+@pytest.mark.django_db
+def test_dashboard_lists_current_trips_soonest_first_then_past_trips_latest_first(auth_client):
+	c, _ = auth_client
+
+	def day(offset):
+		return str(TODAY + timedelta(days=offset))
+
+	for name, start, end in [
+		("Berlin", -60, -50),  # past, ended longest ago
+		("Tokyo", 40, 50),  # upcoming, later
+		("Mexico", -10, -5),  # past, ended most recently
+		("Lisbon", 5, 8),  # upcoming, soonest
+		("Rome", -2, 3),  # under way
+	]:
+		c.post("/api/trips/", {"name": name, "start_date": day(start), "end_date": day(end)}, format="json")
+	# Editing a past trip used to bring it to the top.
+	berlin = next(t for t in c.get("/api/trips/").data if t["name"] == "Berlin")
+	c.patch(f"/api/trips/{berlin['id']}/", {"name": "Berlin 2026"}, format="json")
+
+	assert [t["name"] for t in c.get("/api/trips/").data] == ["Rome", "Lisbon", "Tokyo", "Mexico", "Berlin 2026"]

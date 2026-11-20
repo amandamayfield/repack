@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 
 from django.db import IntegrityError, transaction
-from django.db.models import Count, F, Max, Q
+from django.db.models import Case, Count, F, Max, Q, Value, When
 from django.db.models.functions import Lower
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
@@ -198,6 +198,13 @@ class TripViewSet(OwnedModelViewSet):
 				total_count=Count(name, distinct=True, filter=live),
 				unpacked_count=Count(name, distinct=True, filter=live & Q(sections__items__packed=False)),
 			).annotate(packed_count=F("total_count") - F("unpacked_count"))
+			# Current trips first, soonest start first; then past trips, most recently ended first.
+			is_past = Case(When(sync.current_filter(), then=Value(0)), default=Value(1))
+			qs = qs.annotate(
+				is_past=is_past,
+				current_start=Case(When(is_past=0, then="start_date")),
+				past_end=Case(When(is_past=1, then="end_date")),
+			).order_by("is_past", F("current_start").asc(nulls_last=True), F("past_end").desc(nulls_last=True), "id")
 		else:
 			qs = qs.prefetch_related("sections__saved_list", "sections__items__source_item")
 		return qs

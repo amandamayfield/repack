@@ -77,7 +77,7 @@ CRUD (DRF routers):
 - `saved-lists/`, `saved-list-items/`, `trips/`, `trip-sections/`, `trip-items/`.
 - List vs detail:
   - `GET saved-lists/` returns summaries without items; the detail view embeds `items`.
-  - `GET trips/` returns `packed_count` and `total_count` (computed in the database, `removed` left out, counting each item name once; see "Same item in two sections"); the detail view embeds `sections`, each `{id, name, saved_list, is_synced, order, items, removed_items}` (`removed_items` is `[{id, name}]`).
+  - `GET trips/` lists current trips first, soonest start first, then past trips, most recently ended first ("current" is `sync.current_filter`). It returns `packed_count` and `total_count` (computed in the database, `removed` left out, counting each item name once; see "Same item in two sections"); the detail view embeds `sections`, each `{id, name, saved_list, is_synced, order, items, removed_items}` (`removed_items` is `[{id, name}]`).
 - `order` is assigned by the server on create (appended last). Clients don't send it.
 - `POST saved-list-items/{id}/move/` and `POST trip-items/{id}/move/` with `{direction: "up" | "down"}` → 204: swap with the neighbour, worked out on the server (`move_one_step`). Past either end, or a bad direction, is a 400. On a trip only extras move, among the extras; a synced item is a 400. The controls are Move up / Move down in the item's Edit form.
 - `PATCH saved-list-items/{id}/` also returns `unticked_trips`: the names of current trips where that edit unticked the item. The list editor shows them.

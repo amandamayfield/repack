@@ -10,7 +10,7 @@ from django.utils import timezone
 from .models import Trip, TripItem, TripSection
 
 
-def _current(prefix=""):
+def current_filter(prefix=""):
 	return Q(**{f"{prefix}end_date__gte": timezone.localdate()})
 
 
@@ -41,7 +41,7 @@ def amount_went_up(old, new):
 
 
 def sync_item_created(item):
-	sections = TripSection.objects.filter(Q(saved_list=item.saved_list) & _current("trip__"))
+	sections = TripSection.objects.filter(Q(saved_list=item.saved_list) & current_filter("trip__"))
 	for section in sections:
 		_copy(section, item).save()
 		renumber(section)
@@ -50,7 +50,7 @@ def sync_item_created(item):
 def sync_item_updated(item, old_name, old_quantity):
 	"""Returns the names of the trips where a ticked copy got unticked."""
 	# Removed items are kept up to date too, so restoring one brings back the list as it is now.
-	linked = TripItem.objects.filter(Q(source_item=item) & _current("section__trip__"))
+	linked = TripItem.objects.filter(Q(source_item=item) & current_filter("section__trip__"))
 	# The trip's own amount wins, and its tick stays.
 	follows = linked.filter(quantity_overridden=False)
 	renamed = item.name != old_name
@@ -67,17 +67,17 @@ def sync_item_updated(item, old_name, old_quantity):
 
 def sync_item_deleted(item):
 	"""Call before deleting `item`. Past trips' copies are then unlinked by SET_NULL."""
-	TripItem.objects.filter(Q(source_item=item) & _current("section__trip__")).delete()
+	TripItem.objects.filter(Q(source_item=item) & current_filter("section__trip__")).delete()
 
 
 def sync_list_reordered(saved_list):
-	for section in TripSection.objects.filter(Q(saved_list=saved_list) & _current("trip__")):
+	for section in TripSection.objects.filter(Q(saved_list=saved_list) & current_filter("trip__")):
 		renumber(section)
 
 
 def sync_list_renamed(saved_list, old_name):
 	"""Past sections showing the list's name keep the old one."""
-	TripSection.objects.filter(saved_list=saved_list, custom_name="").exclude(_current("trip__")).update(
+	TripSection.objects.filter(saved_list=saved_list, custom_name="").exclude(current_filter("trip__")).update(
 		custom_name=old_name
 	)
 
@@ -85,7 +85,7 @@ def sync_list_renamed(saved_list, old_name):
 def sync_list_deleted(saved_list):
 	"""Call before deleting `saved_list`. Past sections stay, as trip-only headings."""
 	sections = TripSection.objects.filter(saved_list=saved_list)
-	sections.filter(_current("trip__")).delete()
+	sections.filter(current_filter("trip__")).delete()
 	sections.filter(custom_name="").update(custom_name=saved_list.name)
 	past_items = TripItem.objects.filter(section__saved_list=saved_list)
 	past_items.filter(removed=True).delete()
