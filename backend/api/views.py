@@ -1,7 +1,8 @@
 from contextlib import contextmanager
 
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Max, Q
+from django.db.models import Count, F, Max, Q
+from django.db.models.functions import Lower
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -68,6 +69,15 @@ def saving_trip_name(name):
 		if "unique_trip_name_per_user" not in str(error):
 			raise
 		raise serializers.ValidationError({"name": [trip_name_taken(name)]}) from None
+
+
+def with_same_items(trip, items):
+	"""`items` and every live item on `trip` with the same name, ignoring case. The same thing in two sections
+	is one thing to pack, so they share a tick."""
+	names = items.annotate(lname=Lower("name")).values("lname")
+	return (
+		TripItem.objects.filter(section__trip=trip, removed=False).annotate(lname=Lower("name")).filter(lname__in=names)
+	)
 
 
 def add_list_sections(trip, saved_lists):
@@ -158,11 +168,13 @@ class TripViewSet(OwnedModelViewSet):
 	def get_queryset(self):
 		qs = super().get_queryset()  # already filtered to request.user
 		if self.action == "list":
+			# Items are counted by name, so one in two sections counts once, and as packed only if every copy is.
 			live = Q(sections__items__removed=False)
+			name = Lower("sections__items__name")
 			qs = qs.annotate(
-				total_count=Count("sections__items", filter=live),
-				packed_count=Count("sections__items", filter=live & Q(sections__items__packed=True)),
-			)
+				total_count=Count(name, distinct=True, filter=live),
+				unpacked_count=Count(name, distinct=True, filter=live & Q(sections__items__packed=False)),
+			).annotate(packed_count=F("total_count") - F("unpacked_count"))
 		else:
 			qs = qs.prefetch_related("sections__saved_list", "sections__items")
 		return qs
@@ -218,7 +230,7 @@ class TripViewSet(OwnedModelViewSet):
 		if section_id is not None:
 			if not isinstance(section_id, int) or not trip.sections.filter(id=section_id).exists():
 				return Response({"section": ["Pick a section of this trip."]}, status=status.HTTP_400_BAD_REQUEST)
-			items = items.filter(section_id=section_id)
+			items = with_same_items(trip, items.filter(section_id=section_id))
 		items.update(packed=False)
 		return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -269,6 +281,12 @@ class TripItemViewSet(viewsets.ModelViewSet):
 	def perform_create(self, serializer):
 		section = serializer.validated_data["section"]
 		serializer.save(order=next_order(section.items.all()))
+
+	@transaction.atomic
+	def perform_update(self, serializer):
+		item = serializer.save()
+		if "packed" in serializer.validated_data:
+			with_same_items(item.section.trip, TripItem.objects.filter(pk=item.pk)).update(packed=item.packed)
 
 	def perform_destroy(self, item):
 		if item.from_list:

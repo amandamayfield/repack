@@ -741,6 +741,134 @@ test("an extra's edit form can change its name", async () => {
   );
 });
 
+// Sunscreen is in both Beach and Hiking: one thing to pack.
+const SHARED_TRIP = {
+  ...TRIP,
+  sections: [
+    {
+      id: 21,
+      name: "Beach",
+      saved_list: 98,
+      is_synced: true,
+      order: 0,
+      items: [
+        {
+          id: 31,
+          name: "Sunscreen",
+          quantity: 2,
+          packed: false,
+          is_synced: true,
+        },
+        {
+          id: 32,
+          name: "Towel",
+          quantity: null,
+          packed: false,
+          is_synced: true,
+        },
+      ],
+    },
+    {
+      id: 22,
+      name: "Hiking",
+      saved_list: 97,
+      is_synced: true,
+      order: 1,
+      items: [
+        {
+          id: 33,
+          name: "sunscreen",
+          quantity: null,
+          packed: false,
+          is_synced: true,
+        },
+        {
+          id: 34,
+          name: "Boots",
+          quantity: null,
+          packed: true,
+          is_synced: true,
+        },
+      ],
+    },
+  ],
+};
+
+test("an item in two sections says so, ticks in both, and counts once", async () => {
+  baseMock({ trip: SHARED_TRIP });
+  renderTrip();
+  await loaded();
+  expect(screen.getByText("1 / 3 packed")).toBeInTheDocument();
+  const beachCopy = within(section("Beach")).getByRole("checkbox", {
+    name: /Sunscreen.*\(also in Hiking\)/,
+  });
+  const hikingCopy = within(section("Hiking")).getByRole("checkbox", {
+    name: /sunscreen \(also in Beach\)/,
+  });
+  expect(
+    within(section("Beach")).getByRole("checkbox", { name: "Towel" }),
+  ).toBeInTheDocument();
+
+  await userEvent.click(beachCopy);
+
+  expect(beachCopy).toBeChecked();
+  expect(hikingCopy).toBeChecked();
+  expect(screen.getByText("2 / 3 packed")).toBeInTheDocument();
+  const patches = api.mock.calls.filter(([, opts]) => opts?.method === "PATCH");
+  expect(patches).toEqual([
+    ["/trip-items/31/", { method: "PATCH", body: { packed: true } }],
+  ]);
+});
+
+test("a failed tick of a shared item puts both copies back", async () => {
+  baseMock({
+    trip: SHARED_TRIP,
+    handler: (path, opts) =>
+      opts?.method === "PATCH"
+        ? Promise.reject(new ApiError(500, {}))
+        : undefined,
+  });
+  renderTrip();
+  await loaded();
+
+  await userEvent.click(
+    within(section("Hiking")).getByRole("checkbox", { name: /sunscreen/ }),
+  );
+
+  expect(await screen.findByRole("alert")).toBeInTheDocument();
+  expect(
+    screen.queryAllByRole("checkbox", { name: /sunscreen/i, checked: true }),
+  ).toHaveLength(0);
+});
+
+test("untick all in a section also unticks its shared items elsewhere", async () => {
+  const ticked = {
+    ...SHARED_TRIP,
+    sections: SHARED_TRIP.sections.map((s) => ({
+      ...s,
+      items: s.items.map((i) => ({ ...i, packed: true })),
+    })),
+  };
+  baseMock({ trip: ticked });
+  renderTrip();
+  await loaded();
+
+  await userEvent.click(
+    screen.getByRole("button", { name: "Untick all in Beach" }),
+  );
+  const dialog = await screen.findByRole("dialog");
+  await userEvent.click(
+    within(dialog).getByRole("button", { name: "Untick all" }),
+  );
+
+  expect(
+    within(section("Hiking")).getByRole("checkbox", { name: /sunscreen/ }),
+  ).not.toBeChecked();
+  expect(
+    within(section("Hiking")).getByRole("checkbox", { name: "Boots" }),
+  ).toBeChecked();
+});
+
 test("deleting a synced item asks first, and says the list keeps it", async () => {
   baseMock();
   renderTrip();

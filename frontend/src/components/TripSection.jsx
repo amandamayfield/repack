@@ -20,6 +20,7 @@ export default function TripSection({
   onSaveItem,
   onDeleteItem,
   onRestoreItem,
+  alsoIn,
 }) {
   const headingId = useId();
   const bodyId = useId();
@@ -128,6 +129,7 @@ export default function TripSection({
                   key={item.id}
                   item={item}
                   lockName={item.is_synced}
+                  alsoIn={alsoIn(item)}
                   onToggle={handleToggle}
                   onSave={(body) => onSaveItem(item, body)}
                   onDelete={() => onDeleteItem(item)}

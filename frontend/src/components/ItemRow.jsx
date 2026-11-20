@@ -5,9 +5,11 @@ import ItemForm from "./ItemForm";
 // Pass `onToggle` (trips only) to render the packed checkbox: a native checkbox
 // wrapped in its <label> gives keyboard + screen-reader support for free.
 // `lockName` (synced trip items) limits the edit form to the amount.
+// `alsoIn` names the trip's other sections holding the same item.
 export default function ItemRow({
   item,
   lockName = false,
+  alsoIn = [],
   onToggle,
   onSave,
   onDelete,
@@ -23,6 +25,7 @@ export default function ItemRow({
           <span className="visually-hidden">, quantity {item.quantity}</span>
         </>
       )}
+      {alsoIn.length > 0 && <> (also in {alsoIn.join(", ")})</>}
     </span>
   );
 

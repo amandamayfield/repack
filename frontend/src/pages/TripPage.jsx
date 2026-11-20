@@ -41,8 +41,26 @@ function TripDetail({ trip, reload }) {
     setSections(trip.sections ?? []);
   }
 
-  const overall = computeProgress(sections.flatMap((s) => s.items));
+  const allItems = sections.flatMap((s) => s.items);
+  const overall = computeProgress(allItems);
   const dates = formatDateRange(trip.start_date, trip.end_date);
+
+  // The same item in two sections shares its tick; the server does the same.
+  function withSameItems(items) {
+    const names = new Set(items.map((i) => i.name.toLowerCase()));
+    return allItems.filter((i) => names.has(i.name.toLowerCase()));
+  }
+
+  function otherSectionsWith(item, section) {
+    const key = item.name.toLowerCase();
+    return sections
+      .filter(
+        (s) =>
+          s.id !== section.id &&
+          s.items.some((i) => i.name.toLowerCase() === key),
+      )
+      .map((s) => s.name);
+  }
 
   function setPacked(itemIds, packed) {
     setSections((prev) =>
@@ -63,7 +81,10 @@ function TripDetail({ trip, reload }) {
   async function handleToggle(item, packed) {
     setActionError(null);
     // Optimistic flip so the ring recomputes immediately.
-    setPacked([item.id], packed);
+    const changed = withSameItems([item])
+      .filter((i) => i.packed !== packed)
+      .map((i) => i.id);
+    setPacked(changed, packed);
     try {
       await api(`/trip-items/${item.id}/`, {
         method: "PATCH",
@@ -71,7 +92,7 @@ function TripDetail({ trip, reload }) {
       });
     } catch {
       // Revert on failure so the checkbox never lies about server state.
-      setPacked([item.id], !packed);
+      setPacked(changed, !packed);
       setActionError("Couldn't update that item. Try again.");
     }
   }
@@ -95,7 +116,7 @@ function TripDetail({ trip, reload }) {
     );
     if (!ok) return;
     setActionError(null);
-    const items = section ? section.items : sections.flatMap((s) => s.items);
+    const items = section ? withSameItems(section.items) : allItems;
     // Remember exactly what was ticked, so a failed save restores only those.
     const ticked = items.filter((i) => i.packed).map((i) => i.id);
     setPacked(ticked, false);
@@ -369,6 +390,7 @@ function TripDetail({ trip, reload }) {
                 onSaveItem={handleSaveItem}
                 onDeleteItem={handleDeleteItem}
                 onRestoreItem={handleRestoreItem}
+                alsoIn={(item) => otherSectionsWith(item, section)}
               />
             ))}
           </div>

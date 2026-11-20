@@ -414,3 +414,89 @@ def test_racing_add_of_same_list_is_400_not_500(auth_client, monkeypatch):
 	assert r.data == {"saved_list": ["This list is already on this trip."]}
 	assert TripSection.objects.filter(trip_id=trip["id"]).count() == 1
 	assert not TripItem.objects.filter(section__trip_id=trip["id"]).exists()
+
+
+# --- The same item in two sections ---
+
+
+def _beach_and_hiking(c):
+	"""A trip with Beach (Sunscreen, Towel) and Hiking (sunscreen, Boots): one item to pack in two sections."""
+	trip = _trip(c)
+	sections = {}
+	for name, items in [("Beach", ["Sunscreen", "Towel"]), ("Hiking", ["sunscreen", "Boots"])]:
+		lst = c.post("/api/saved-lists/", {"name": name}, format="json").data
+		for item in items:
+			c.post("/api/saved-list-items/", {"saved_list": lst["id"], "name": item}, format="json")
+		sections[name] = _add_list(c, trip, lst).data
+	return trip, sections
+
+
+def _states(trip_id):
+	return sorted((i.section.display_name, i.name, i.packed) for i in TripItem.objects.filter(section__trip_id=trip_id))
+
+
+@pytest.mark.django_db
+def test_ticking_an_item_ticks_it_in_every_section(auth_client):
+	c, _ = auth_client
+	trip, sections = _beach_and_hiking(c)
+	other = _trip(c, name="Porto")
+	_add_list(c, other, {"id": sections["Beach"]["saved_list"]})
+	sunscreen = sections["Beach"]["items"][0]
+
+	r = c.patch(f"/api/trip-items/{sunscreen['id']}/", {"packed": True}, format="json")
+
+	assert r.status_code == 200
+	assert _states(trip["id"]) == [
+		("Beach", "Sunscreen", True),
+		("Beach", "Towel", False),
+		("Hiking", "Boots", False),
+		("Hiking", "sunscreen", True),
+	]
+	assert not TripItem.objects.filter(section__trip_id=other["id"], packed=True).exists()
+
+	c.patch(f"/api/trip-items/{sections['Hiking']['items'][0]['id']}/", {"packed": False}, format="json")
+
+	assert not TripItem.objects.filter(section__trip_id=trip["id"], packed=True).exists()
+
+
+@pytest.mark.django_db
+def test_a_removed_copy_keeps_its_own_tick(auth_client):
+	c, _ = auth_client
+	_, sections = _beach_and_hiking(c)
+	hiking_copy = sections["Hiking"]["items"][0]
+	c.delete(f"/api/trip-items/{hiking_copy['id']}/")
+
+	c.patch(f"/api/trip-items/{sections['Beach']['items'][0]['id']}/", {"packed": True}, format="json")
+
+	assert TripItem.objects.get(id=hiking_copy["id"]).packed is False
+
+
+@pytest.mark.django_db
+def test_untick_all_in_a_section_unticks_its_items_in_other_sections(auth_client):
+	c, _ = auth_client
+	trip, sections = _beach_and_hiking(c)
+	_tick_everything(trip["id"])
+
+	c.post(f"/api/trips/{trip['id']}/untick-all/", {"section": sections["Beach"]["id"]}, format="json")
+
+	assert _states(trip["id"]) == [
+		("Beach", "Sunscreen", False),
+		("Beach", "Towel", False),
+		("Hiking", "Boots", True),
+		("Hiking", "sunscreen", False),
+	]
+
+
+@pytest.mark.django_db
+def test_counts_an_item_in_two_sections_once_and_packed_only_when_every_copy_is(auth_client):
+	c, _ = auth_client
+	_, sections = _beach_and_hiking(c)
+	beach_copy, hiking_copy = sections["Beach"]["items"][0], sections["Hiking"]["items"][0]
+	c.patch(f"/api/trip-items/{beach_copy['id']}/", {"packed": True}, format="json")
+
+	assert [(t["packed_count"], t["total_count"]) for t in c.get("/api/trips/").data] == [(1, 3)]
+
+	# Set directly: copies can drift apart, e.g. when a list edit unticks only one of them.
+	TripItem.objects.filter(id=hiking_copy["id"]).update(packed=False)
+
+	assert [(t["packed_count"], t["total_count"]) for t in c.get("/api/trips/").data] == [(0, 3)]

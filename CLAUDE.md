@@ -76,7 +76,7 @@ CRUD (DRF routers):
 - `saved-lists/`, `saved-list-items/`, `trips/`, `trip-sections/`, `trip-items/`.
 - List vs detail:
   - `GET saved-lists/` returns summaries without items; the detail view embeds `items`.
-  - `GET trips/` returns `packed_count` and `total_count` (computed in the database, `removed` left out); the detail view embeds `sections`, each `{id, name, saved_list, is_synced, order, items, removed_items}` (`removed_items` is `[{id, name}]`).
+  - `GET trips/` returns `packed_count` and `total_count` (computed in the database, `removed` left out, counting each item name once; see "Same item in two sections"); the detail view embeds `sections`, each `{id, name, saved_list, is_synced, order, items, removed_items}` (`removed_items` is `[{id, name}]`).
 - `order` is assigned by the server on create (appended last). Clients don't send it.
 - `PATCH saved-list-items/{id}/` also returns `unticked_trips`: the names of current trips where that edit unticked the item. The list editor shows them.
 
@@ -86,13 +86,14 @@ Trip sections:
 - `POST trips/{id}/reorder-sections/` with `{section_ids}` → 204: every section of the trip, once each, else 400.
 - `POST trips/{id}/duplicate/` with `{start_date, end_date}` and an optional `name` (validated like a new trip) → 201 with the copy's detail.
 - `POST trips/{id}/add-lists/` with `{saved_lists}` → 204. Adds a synced section per list, in the order given, all or none: any id that isn't the user's, a repeat, or a list already on the trip is a 400. `POST trips/` accepts the same `saved_lists` to start a trip with them.
-- `POST trips/{id}/untick-all/` → 204. Unticks every item on the trip, or only one section's with `{section}` (a section of another trip is a 400). Removed items are left alone.
+- `POST trips/{id}/untick-all/` → 204. Unticks every item on the trip, or only one section's with `{section}` (plus the same items in other sections; a section of another trip is a 400). Removed items are left alone.
 
 Trip items (`trip-items/`):
 - `POST {section, name, quantity?}` adds an extra.
 - On a synced item: changing `quantity` sets `quantity_overridden`; changing `name` is a 400; `DELETE` sets `removed`. Resending unchanged values is fine. On an extra, edits and `DELETE` act normally.
 - `POST trip-items/{id}/restore/` → 200 with the item: clears `removed` and unticks it (a live item is left as it is).
 - Items can't move between sections.
+- **Same item in two sections:** live items on one trip with the same name, ignoring case, are one thing to pack. Ticking or unticking one does the same to the others (`with_same_items` in `views.py`). Progress counts the name once, and as packed only when every copy is. Amounts stay per row. The trip page mirrors this in `computeProgress` and `TripPage`, and `ItemRow` shows "(also in …)".
 
 ## Frontend (`frontend/src/`)
 
