@@ -6,10 +6,12 @@ import { errorMessage } from "../api/ApiError";
 // owns the editable fields (name, optional quantity). `lockName` shows the name
 // as text instead, for trip items synced from a saved list.
 // `onSubmit(body)` returns a promise — the form manages pending/error around it.
+// `onFollowList` (a synced item with the trip's own amount) offers the list's amount back.
 export default function ItemForm({
   initial = {},
   lockName = false,
   onSubmit,
+  onFollowList,
   onCancel,
   submitLabel = "Save",
   idPrefix = "item",
@@ -43,6 +45,18 @@ export default function ItemForm({
     } catch (err) {
       // A 401 is handled globally (redirect to login); anything else is shown here.
       setError(errorMessage(err, "Couldn't save the item. Try again."));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function handleFollowList() {
+    setPending(true);
+    setError(null);
+    try {
+      await onFollowList();
+    } catch (err) {
+      setError(errorMessage(err, "Couldn't use the list's amount. Try again."));
     } finally {
       setPending(false);
     }
@@ -85,6 +99,24 @@ export default function ItemForm({
           readOnly={pending}
         />
       </div>
+
+      {onFollowList && (
+        <div className="field">
+          <span className="field__hint">
+            {initial.list_quantity == null
+              ? "Your saved list has no amount."
+              : `Your saved list's amount is ${initial.list_quantity}.`}
+          </span>
+          <button
+            type="button"
+            className="button button--ghost button--small"
+            onClick={handleFollowList}
+            disabled={pending}
+          >
+            Use the list's amount
+          </button>
+        </div>
+      )}
 
       <div className="form__actions">
         <button

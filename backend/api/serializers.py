@@ -37,10 +37,29 @@ class SavedListSerializer(serializers.ModelSerializer):
 
 class TripItemSerializer(serializers.ModelSerializer):
 	is_synced = serializers.BooleanField(source="from_list", read_only=True)
+	# For "Use the list's amount": whether the trip set its own amount, and what the list says.
+	can_follow_list = serializers.SerializerMethodField()
+	list_quantity = serializers.SerializerMethodField()
 
 	class Meta:
 		model = TripItem
-		fields = ["id", "section", "name", "quantity", "packed", "is_synced", "order"]
+		fields = [
+			"id",
+			"section",
+			"name",
+			"quantity",
+			"packed",
+			"is_synced",
+			"can_follow_list",
+			"list_quantity",
+			"order",
+		]
+
+	def get_can_follow_list(self, item):
+		return item.quantity_overridden and item.source_item is not None
+
+	def get_list_quantity(self, item):
+		return item.source_item.quantity if item.source_item else None
 
 	def validate_section(self, value):
 		if value.trip.user_id != self.context["request"].user.id:
@@ -58,7 +77,9 @@ class TripItemSerializer(serializers.ModelSerializer):
 			if "name" in attrs and attrs["name"] != item.name:
 				raise serializers.ValidationError({"name": "Rename this item on its saved list."})
 			if "quantity" in attrs and attrs["quantity"] != item.quantity:
-				attrs["quantity_overridden"] = True
+				# Typing the list's own amount back means following the list again.
+				source = item.source_item
+				attrs["quantity_overridden"] = source is None or attrs["quantity"] != source.quantity
 		return attrs
 
 

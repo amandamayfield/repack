@@ -176,7 +176,7 @@ class TripViewSet(OwnedModelViewSet):
 				unpacked_count=Count(name, distinct=True, filter=live & Q(sections__items__packed=False)),
 			).annotate(packed_count=F("total_count") - F("unpacked_count"))
 		else:
-			qs = qs.prefetch_related("sections__saved_list", "sections__items")
+			qs = qs.prefetch_related("sections__saved_list", "sections__items__source_item")
 		return qs
 
 	def perform_create(self, serializer):
@@ -254,7 +254,7 @@ class TripSectionViewSet(viewsets.ModelViewSet):
 		return (
 			TripSection.objects.filter(trip__user=self.request.user)
 			.select_related("saved_list")
-			.prefetch_related("items")
+			.prefetch_related("items__source_item")
 		)
 
 	def perform_create(self, serializer):
@@ -295,6 +295,19 @@ class TripItemViewSet(viewsets.ModelViewSet):
 			item.save(update_fields=["removed"])
 		else:
 			item.delete()
+
+	@action(detail=True, methods=["post"], url_path="follow-list")
+	def follow_list(self, request, pk=None):
+		"""Drop the trip's own amount: take the list's, and follow its changes again."""
+		item = self.get_object()
+		if item.source_item is None:
+			return Response({"detail": "This item isn't on a saved list."}, status=status.HTTP_400_BAD_REQUEST)
+		amount = item.source_item.quantity
+		if sync.amount_went_up(item.quantity, amount):
+			item.packed = False
+		item.quantity, item.quantity_overridden = amount, False
+		item.save(update_fields=["quantity", "quantity_overridden", "packed"])
+		return Response(self.get_serializer(item).data)
 
 	@action(detail=True, methods=["post"])
 	def restore(self, request, pk=None):

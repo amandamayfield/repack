@@ -207,6 +207,12 @@ function TripDetail({ trip, reload }) {
     reload();
   }
 
+  // Errors propagate to ItemForm, which shows them.
+  async function handleFollowListItem(item) {
+    await api(`/trip-items/${item.id}/follow-list/`, { method: "POST" });
+    reload();
+  }
+
   async function handleDeleteItem(item) {
     const ok = await confirm(
       item.is_synced
@@ -390,6 +396,7 @@ function TripDetail({ trip, reload }) {
                 onSaveItem={handleSaveItem}
                 onDeleteItem={handleDeleteItem}
                 onRestoreItem={handleRestoreItem}
+                onFollowListItem={handleFollowListItem}
                 alsoIn={(item) => otherSectionsWith(item, section)}
               />
             ))}

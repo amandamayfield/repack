@@ -20,6 +20,7 @@ export default function TripSection({
   onSaveItem,
   onDeleteItem,
   onRestoreItem,
+  onFollowListItem,
   alsoIn,
 }) {
   const headingId = useId();
@@ -133,6 +134,7 @@ export default function TripSection({
                   onToggle={handleToggle}
                   onSave={(body) => onSaveItem(item, body)}
                   onDelete={() => onDeleteItem(item)}
+                  onFollowList={() => onFollowListItem(item)}
                 />
               ))}
             </ul>

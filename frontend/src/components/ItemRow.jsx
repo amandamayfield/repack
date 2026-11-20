@@ -6,6 +6,7 @@ import ItemForm from "./ItemForm";
 // wrapped in its <label> gives keyboard + screen-reader support for free.
 // `lockName` (synced trip items) limits the edit form to the amount.
 // `alsoIn` names the trip's other sections holding the same item.
+// `onFollowList` is offered only while the trip has its own amount for the item.
 export default function ItemRow({
   item,
   lockName = false,
@@ -13,6 +14,7 @@ export default function ItemRow({
   onToggle,
   onSave,
   onDelete,
+  onFollowList,
 }) {
   const [editing, setEditing] = useState(false);
   // "×3" reads badly aloud, so screen readers get ", quantity 3" instead.
@@ -39,6 +41,14 @@ export default function ItemRow({
             await onSave(body);
             setEditing(false);
           }}
+          onFollowList={
+            onFollowList && item.can_follow_list
+              ? async () => {
+                  await onFollowList();
+                  setEditing(false);
+                }
+              : undefined
+          }
           onCancel={() => setEditing(false)}
           submitLabel="Save"
           idPrefix={`edit-${item.id}`}

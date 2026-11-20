@@ -90,7 +90,8 @@ Trip sections:
 
 Trip items (`trip-items/`):
 - `POST {section, name, quantity?}` adds an extra.
-- On a synced item: changing `quantity` sets `quantity_overridden`; changing `name` is a 400; `DELETE` sets `removed`. Resending unchanged values is fine. On an extra, edits and `DELETE` act normally.
+- On a synced item: changing `quantity` sets `quantity_overridden`, unless it's changed to the list's own amount, which clears it; changing `name` is a 400; `DELETE` sets `removed`. Resending unchanged values is fine. On an extra, edits and `DELETE` act normally.
+- Items include `can_follow_list` (synced, the list item still exists, and the trip set its own amount) and `list_quantity`. `POST trip-items/{id}/follow-list/` → 200 with the item: takes the list's amount and clears `quantity_overridden`, unticking only if the amount went up (`sync.amount_went_up`). An item with no list item is a 400. The synced item's edit form offers it as "Use the list's amount".
 - `POST trip-items/{id}/restore/` → 200 with the item: clears `removed` and unticks it (a live item is left as it is).
 - Items can't move between sections.
 - **Same item in two sections:** live items on one trip with the same name, ignoring case, are one thing to pack. Ticking or unticking one does the same to the others (`with_same_items` in `views.py`). Progress counts the name once, and as packed only when every copy is. Amounts stay per row. The trip page mirrors this in `computeProgress` and `TripPage`, and `ItemRow` shows "(also in …)".

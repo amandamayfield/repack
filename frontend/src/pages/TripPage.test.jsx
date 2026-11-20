@@ -722,6 +722,97 @@ test("a synced item's edit form changes only its amount", async () => {
   );
 });
 
+function tripWithSocks(changes) {
+  const [camping, wedding] = TRIP.sections;
+  const items = camping.items.map((i) =>
+    i.id === 1 ? { ...i, ...changes } : i,
+  );
+  return { ...TRIP, sections: [{ ...camping, items }, wedding] };
+}
+
+async function editSocks() {
+  await userEvent.click(screen.getByRole("button", { name: "Edit Socks" }));
+  return screen
+    .getByLabelText("Quantity (optional)", { selector: "#edit-1-qty" })
+    .closest("li");
+}
+
+test("an item with the trip's own amount can go back to the list's", async () => {
+  baseMock({
+    trip: tripWithSocks({ can_follow_list: true, list_quantity: 2 }),
+  });
+  renderTrip();
+  await loaded();
+
+  const row = await editSocks();
+  expect(row).toHaveTextContent("Your saved list's amount is 2.");
+  await userEvent.click(
+    within(row).getByRole("button", { name: "Use the list's amount" }),
+  );
+
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith("/trip-items/1/follow-list/", {
+      method: "POST",
+    }),
+  );
+  await waitFor(() =>
+    expect(
+      screen.queryByLabelText("Quantity (optional)", {
+        selector: "#edit-1-qty",
+      }),
+    ).toBeNull(),
+  );
+  expect(api.mock.calls.filter(([path]) => path === "/trips/5/")).toHaveLength(
+    2,
+  );
+});
+
+test("going back to a list with no amount says so", async () => {
+  baseMock({
+    trip: tripWithSocks({ can_follow_list: true, list_quantity: null }),
+  });
+  renderTrip();
+  await loaded();
+
+  expect(await editSocks()).toHaveTextContent("Your saved list has no amount.");
+});
+
+test("an item following its list has no way-back button", async () => {
+  baseMock({
+    trip: tripWithSocks({ can_follow_list: false, list_quantity: 3 }),
+  });
+  renderTrip();
+  await loaded();
+
+  const row = await editSocks();
+  expect(
+    within(row).queryByRole("button", { name: "Use the list's amount" }),
+  ).toBeNull();
+});
+
+test("a failed way back shows the server's reason in the form", async () => {
+  baseMock({
+    trip: tripWithSocks({ can_follow_list: true, list_quantity: 2 }),
+    handler: (path) =>
+      path === "/trip-items/1/follow-list/"
+        ? Promise.reject(
+            new ApiError(400, { detail: "This item isn't on a saved list." }),
+          )
+        : undefined,
+  });
+  renderTrip();
+  await loaded();
+
+  const row = await editSocks();
+  await userEvent.click(
+    within(row).getByRole("button", { name: "Use the list's amount" }),
+  );
+
+  expect(await within(row).findByRole("alert")).toHaveTextContent(
+    "This item isn't on a saved list.",
+  );
+});
+
 test("an extra's edit form can change its name", async () => {
   baseMock();
   renderTrip();
