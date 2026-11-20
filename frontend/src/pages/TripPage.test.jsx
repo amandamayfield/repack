@@ -755,6 +755,48 @@ test("deleting a synced item asks first, and says the list keeps it", async () =
   );
 });
 
+test("a removed synced item is listed under its section and can be restored", async () => {
+  const camping = {
+    ...TRIP.sections[0],
+    removed_items: [{ id: 7, name: "Floss" }],
+  };
+  const trip = { ...TRIP, sections: [camping, TRIP.sections[1]] };
+  baseMock({ trip });
+  renderTrip();
+  await loaded();
+
+  const removed = within(section("Camping")).getByRole("list", {
+    name: "Removed from this trip",
+  });
+  expect(removed).toHaveTextContent("Floss");
+  expect(screen.queryByRole("checkbox", { name: /Floss/ })).toBeNull();
+
+  await userEvent.click(
+    within(removed).getByRole("button", { name: "Restore Floss" }),
+  );
+
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith("/trip-items/7/restore/", {
+      method: "POST",
+    }),
+  );
+  await waitFor(() =>
+    expect(
+      api.mock.calls.filter(([path]) => path === "/trips/5/"),
+    ).toHaveLength(2),
+  );
+});
+
+test("a section with nothing removed has no removed list", async () => {
+  baseMock();
+  renderTrip();
+  await loaded();
+
+  expect(
+    screen.queryByRole("list", { name: "Removed from this trip" }),
+  ).toBeNull();
+});
+
 test("deleting an extra asks first, and says it can't be undone", async () => {
   baseMock();
   renderTrip();

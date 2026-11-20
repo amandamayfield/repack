@@ -49,12 +49,13 @@ React 19 (Vite) → Django 5.2 + DRF → PostgreSQL 16
 - **TripSection**: `{trip, saved_list?, custom_name, order}`. `saved_list` null means trip-only. One section per list per trip (unique constraint). `display_name` is `custom_name`, else the list's name, else "Deleted list".
 - **TripItem**: `{section, source_item?, from_list, name, quantity?, packed, quantity_overridden, removed, order}`.
   - `from_list` marks a synced item; `False` is a trip-only extra. Use it, not `source_item is None`, which also happens when a past trip's list item was deleted.
-  - `removed` is a tombstone for a synced item deleted on the trip: hidden everywhere, never counted, and it stops sync adding the item back.
+  - `removed` is a tombstone for a synced item deleted on the trip: left out of `items` and the counts (only its section's `removed_items` shows it, for restoring), and it stops sync adding the item back.
 - `saved_list` and `source_item` are `SET_NULL`, so past trips keep their copies when lists change.
 - `quantity` must be ≥ 1 when set.
 
 ### Sync rules (`sync.py`)
 - A trip is **current** when `end_date` is empty or today or later (server date, UTC). Only current trips sync; past trips stay as they were.
+- Removed items still get list renames and amount changes, so a restored item matches the list as it is now.
 - List item added → appended after the section's synced items, before extras. Renamed → renamed and unticked. Amount changed → updated and unticked, unless the trip set its own amount (`quantity_overridden`), which wins and keeps its tick. Deleted → removed from current trips.
 - List renamed → past sections keep the old name. List deleted → removed from current trips; past trips keep it as a trip-only section whose items become extras.
 - A trip whose end date moves from past to current catches up (`catch_up_trip`).
@@ -75,7 +76,7 @@ CRUD (DRF routers):
 - `saved-lists/`, `saved-list-items/`, `trips/`, `trip-sections/`, `trip-items/`.
 - List vs detail:
   - `GET saved-lists/` returns summaries without items; the detail view embeds `items`.
-  - `GET trips/` returns `packed_count` and `total_count` (computed in the database, `removed` left out); the detail view embeds `sections`, each `{id, name, saved_list, is_synced, order, items}`.
+  - `GET trips/` returns `packed_count` and `total_count` (computed in the database, `removed` left out); the detail view embeds `sections`, each `{id, name, saved_list, is_synced, order, items, removed_items}` (`removed_items` is `[{id, name}]`).
 - `order` is assigned by the server on create (appended last). Clients don't send it.
 
 Trip sections:
@@ -89,6 +90,7 @@ Trip sections:
 Trip items (`trip-items/`):
 - `POST {section, name, quantity?}` adds an extra.
 - On a synced item: changing `quantity` sets `quantity_overridden`; changing `name` is a 400; `DELETE` sets `removed`. Resending unchanged values is fine. On an extra, edits and `DELETE` act normally.
+- `POST trip-items/{id}/restore/` → 200 with the item: clears `removed` and unticks it (a live item is left as it is).
 - Items can't move between sections.
 
 ## Frontend (`frontend/src/`)

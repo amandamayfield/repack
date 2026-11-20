@@ -179,6 +179,35 @@ def test_removed_item_not_resurrected(auth_client):
 
 
 @pytest.mark.django_db
+def test_restored_item_has_the_lists_current_values(auth_client):
+	c, _ = auth_client
+	lst, items = _toiletries(c)
+	trip, _ = _trip_with(c, lst)
+	sunscreen = _item(c, trip, "Sunscreen")
+	c.delete(f"/api/trip-items/{sunscreen['id']}/")
+
+	c.patch(f"/api/saved-list-items/{items['Sunscreen']['id']}/", {"name": "SPF 50", "quantity": 3}, format="json")
+	c.post(f"/api/trip-items/{sunscreen['id']}/restore/")
+
+	assert _shape(c, trip)[1] == ("SPF 50", 3, False)
+
+
+@pytest.mark.django_db
+def test_restored_item_catches_up_when_trip_becomes_current(auth_client):
+	c, _ = auth_client
+	lst, items = _toiletries(c)
+	trip, _ = _trip_with(c, lst, dates=LAST_MONTH)
+	toothbrush = _item(c, trip, "Toothbrush")
+	c.delete(f"/api/trip-items/{toothbrush['id']}/")
+	c.patch(f"/api/saved-list-items/{items['Toothbrush']['id']}/", {"name": "Electric toothbrush"}, format="json")
+
+	c.patch(f"/api/trips/{trip['id']}/", {"end_date": NEXT_MONTH[1]}, format="json")
+	c.post(f"/api/trip-items/{toothbrush['id']}/restore/")
+
+	assert _shape(c, trip)[0] == ("Electric toothbrush", None, False)
+
+
+@pytest.mark.django_db
 def test_list_item_edit_skips_past_trips(auth_client):
 	c, _ = auth_client
 	lst, items = _toiletries(c)

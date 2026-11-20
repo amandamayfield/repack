@@ -207,6 +207,13 @@ function TripDetail({ trip, reload }) {
     );
   }
 
+  function handleRestoreItem(item) {
+    run(
+      () => api(`/trip-items/${item.id}/restore/`, { method: "POST" }),
+      `Couldn't restore "${item.name}". Try again.`,
+    );
+  }
+
   // Errors propagate to TripForm, which shows them.
   async function handleDuplicate(body) {
     const copy = await api(`/trips/${trip.id}/duplicate/`, {
@@ -358,6 +365,7 @@ function TripDetail({ trip, reload }) {
                 onAddItem={handleAddItem}
                 onSaveItem={handleSaveItem}
                 onDeleteItem={handleDeleteItem}
+                onRestoreItem={handleRestoreItem}
               />
             ))}
           </div>

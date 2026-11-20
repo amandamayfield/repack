@@ -44,7 +44,8 @@ def sync_item_created(item):
 
 
 def sync_item_updated(item, old_name, old_quantity):
-	linked = TripItem.objects.filter(Q(source_item=item, removed=False) & _current("section__trip__"))
+	# Removed items are kept up to date too, so restoring one brings back the list as it is now.
+	linked = TripItem.objects.filter(Q(source_item=item) & _current("section__trip__"))
 	if item.name != old_name:
 		linked.update(name=item.name, packed=False)
 	if item.quantity != old_quantity:
@@ -83,8 +84,6 @@ def catch_up_trip(trip):
 			item = linked.get(source.id)
 			if item is None:
 				_copy(section, source).save()
-				continue
-			if item.removed:
 				continue
 			if item.name != source.name:
 				item.name, item.packed = source.name, False

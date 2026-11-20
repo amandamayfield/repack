@@ -19,9 +19,12 @@ export default function TripSection({
   onAddItem,
   onSaveItem,
   onDeleteItem,
+  onRestoreItem,
 }) {
   const headingId = useId();
   const bodyId = useId();
+  const removedId = useId();
+  const removedItems = section.removed_items ?? [];
   const storageKey = `repack.section-collapsed.${section.id}`;
   const [hidden, setHidden] = useState(() => readFlag(storageKey));
   const progress = computeProgress(section.items);
@@ -139,6 +142,29 @@ export default function TripSection({
               ? "Everything here is packed."
               : `${hiddenCount} packed ${hiddenCount === 1 ? "item" : "items"} hidden.`}
           </p>
+        )}
+
+        {removedItems.length > 0 && (
+          <>
+            <p id={removedId} className="trip-section__empty">
+              Removed from this trip
+            </p>
+            <ul className="item-list" aria-labelledby={removedId}>
+              {removedItems.map((item) => (
+                <li key={item.id} className="item-row">
+                  <span className="item-row__label">{item.name}</span>
+                  <button
+                    type="button"
+                    className="button button--ghost button--small"
+                    onClick={() => onRestoreItem(item)}
+                    aria-label={`Restore ${item.name}`}
+                  >
+                    Restore
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
 
         <ItemForm

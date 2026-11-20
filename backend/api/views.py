@@ -258,7 +258,8 @@ class TripItemViewSet(viewsets.ModelViewSet):
 	serializer_class = TripItemSerializer
 
 	def get_queryset(self):
-		return TripItem.objects.filter(section__trip__user=self.request.user, removed=False)
+		items = TripItem.objects.filter(section__trip__user=self.request.user)
+		return items if self.action == "restore" else items.filter(removed=False)
 
 	def perform_create(self, serializer):
 		section = serializer.validated_data["section"]
@@ -271,3 +272,11 @@ class TripItemViewSet(viewsets.ModelViewSet):
 			item.save(update_fields=["removed"])
 		else:
 			item.delete()
+
+	@action(detail=True, methods=["post"])
+	def restore(self, request, pk=None):
+		item = self.get_object()
+		if item.removed:
+			item.removed, item.packed = False, False
+			item.save(update_fields=["removed", "packed"])
+		return Response(self.get_serializer(item).data)

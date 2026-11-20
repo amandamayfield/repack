@@ -67,10 +67,11 @@ class TripSectionSerializer(serializers.ModelSerializer):
 	name = serializers.CharField(source="custom_name", required=False, allow_blank=True, max_length=150)
 	is_synced = serializers.SerializerMethodField()
 	items = serializers.SerializerMethodField()
+	removed_items = serializers.SerializerMethodField()
 
 	class Meta:
 		model = TripSection
-		fields = ["id", "trip", "saved_list", "name", "is_synced", "order", "items"]
+		fields = ["id", "trip", "saved_list", "name", "is_synced", "order", "items", "removed_items"]
 		read_only_fields = ["order"]
 		# The trip/list uniqueness check is done in validate() with a friendlier message.
 		validators = []
@@ -82,6 +83,9 @@ class TripSectionSerializer(serializers.ModelSerializer):
 		# Filtered in Python so a prefetch of all items is reused.
 		live = [i for i in section.items.all() if not i.removed]
 		return TripItemSerializer(live, many=True, context=self.context).data
+
+	def get_removed_items(self, section):
+		return [{"id": i.id, "name": i.name} for i in section.items.all() if i.removed]
 
 	def to_representation(self, section):
 		data = super().to_representation(section)

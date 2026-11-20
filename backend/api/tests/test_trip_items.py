@@ -197,3 +197,56 @@ def test_trip_items_belong_to_their_owner(auth_client, other_client):
 	assert other_client.delete(f"/api/trip-items/{toothbrush['id']}/").status_code == 404
 	r = other_client.post("/api/trip-items/", {"section": section["id"], "name": "Sneaky"}, format="json")
 	assert r.status_code == 400
+
+
+@pytest.mark.django_db
+def test_section_lists_its_removed_items(auth_client):
+	c, _ = auth_client
+	trip, section = _trip_with_synced_section(c)
+	toothbrush = section["items"][0]
+	c.delete(f"/api/trip-items/{toothbrush['id']}/")
+
+	shown = c.get(f"/api/trips/{trip['id']}/").data["sections"][0]
+
+	assert shown["removed_items"] == [{"id": toothbrush["id"], "name": "Toothbrush"}]
+
+
+@pytest.mark.django_db
+def test_restore_brings_a_removed_item_back_in_place_unticked(auth_client):
+	c, _ = auth_client
+	trip, section = _trip_with_synced_section(c)
+	toothbrush = section["items"][0]
+	c.patch(f"/api/trip-items/{toothbrush['id']}/", {"packed": True}, format="json")
+	c.delete(f"/api/trip-items/{toothbrush['id']}/")
+
+	r = c.post(f"/api/trip-items/{toothbrush['id']}/restore/")
+
+	assert r.status_code == 200
+	assert (r.data["name"], r.data["packed"]) == ("Toothbrush", False)
+	shown = c.get(f"/api/trips/{trip['id']}/").data["sections"][0]
+	assert [i["name"] for i in shown["items"]] == ["Toothbrush", "Sunscreen"]
+	assert shown["removed_items"] == []
+
+
+@pytest.mark.django_db
+def test_restoring_a_live_item_changes_nothing(auth_client):
+	c, _ = auth_client
+	_, section = _trip_with_synced_section(c)
+	toothbrush = section["items"][0]
+	c.patch(f"/api/trip-items/{toothbrush['id']}/", {"packed": True}, format="json")
+
+	r = c.post(f"/api/trip-items/{toothbrush['id']}/restore/")
+
+	assert r.status_code == 200
+	assert r.data["packed"] is True
+
+
+@pytest.mark.django_db
+def test_cant_restore_another_users_item(auth_client, other_client):
+	c, _ = auth_client
+	_, section = _trip_with_synced_section(c)
+	toothbrush = section["items"][0]
+	c.delete(f"/api/trip-items/{toothbrush['id']}/")
+
+	assert other_client.post(f"/api/trip-items/{toothbrush['id']}/restore/").status_code == 404
+	assert TripItem.objects.get(id=toothbrush["id"]).removed is True
