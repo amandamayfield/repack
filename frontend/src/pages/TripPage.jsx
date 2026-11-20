@@ -4,7 +4,7 @@ import { api } from "../api/client";
 import { useDialog } from "../hooks/useDialog";
 import { useFetch } from "../hooks/useFetch";
 import { computeProgress } from "../lib/progress";
-import { formatDateRange } from "../lib/dates";
+import { formatDateRange, sameLengthFromToday } from "../lib/dates";
 import { readFlag, writeFlag } from "../lib/remember";
 import ProgressRing from "../components/ProgressRing";
 import TripForm from "../components/TripForm";
@@ -271,7 +271,10 @@ function TripDetail({ trip, reload }) {
             as they are now.
           </p>
           <TripForm
-            initial={{ name: trip.copy_name }}
+            initial={{
+              name: trip.copy_name,
+              ...sameLengthFromToday(trip.start_date, trip.end_date),
+            }}
             idPrefix="duplicate-trip"
             submitLabel="Make the copy"
             onSubmit={handleDuplicate}
@@ -287,7 +290,7 @@ function TripDetail({ trip, reload }) {
           />
           <div className="trip-hero__text">
             <h1>{trip.name}</h1>
-            {dates && <p className="trip-hero__dates">{dates}</p>}
+            <p className="trip-hero__dates">{dates}</p>
             <p className="trip-hero__count">
               {overall.packed} / {overall.total} packed
             </p>

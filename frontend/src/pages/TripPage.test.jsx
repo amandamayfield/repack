@@ -17,6 +17,8 @@ const TRIP = {
   id: 5,
   name: "Yosemite",
   copy_name: "Copy of Yosemite",
+  start_date: "2026-07-01",
+  end_date: "2026-07-03",
   sections: [
     {
       id: 11,
@@ -99,6 +101,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 test("renders sections in order with their names, counts and items", async () => {
@@ -832,10 +835,10 @@ test("editing the trip PATCHes its name and dates", async () => {
   const name = screen.getByLabelText("Trip name");
   await userEvent.clear(name);
   await userEvent.type(name, "Yosemite Valley");
-  await userEvent.type(
-    screen.getByLabelText("Start date (optional)"),
-    "2026-07-01",
-  );
+  const end = screen.getByLabelText("End date");
+  expect(end).toHaveValue("2026-07-03");
+  await userEvent.clear(end);
+  await userEvent.type(end, "2026-07-09");
   await userEvent.click(screen.getByRole("button", { name: "Save trip" }));
 
   await waitFor(() =>
@@ -844,7 +847,7 @@ test("editing the trip PATCHes its name and dates", async () => {
       body: {
         name: "Yosemite Valley",
         start_date: "2026-07-01",
-        end_date: null,
+        end_date: "2026-07-09",
       },
     }),
   );
@@ -885,7 +888,9 @@ test("a fully packed trip shows the All packed stamp", async () => {
   expect(ring).toHaveTextContent("All packed");
 });
 
-test("duplicate asks for a name and dates, then opens the copy", async () => {
+test("duplicate offers the same length from today, then opens the copy", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(2026, 10, 29)); // the trip is Jul 1–3, so 3 days
   baseMock({
     handler: (path) =>
       path === "/trips/5/duplicate/"
@@ -902,10 +907,8 @@ test("duplicate asks for a name and dates, then opens the copy", async () => {
   expect(name).toHaveValue("Copy of Yosemite");
   await userEvent.clear(name);
   await userEvent.type(name, "Yosemite again");
-  await userEvent.type(
-    within(form).getByLabelText("Start date (optional)"),
-    "2027-06-01",
-  );
+  expect(within(form).getByLabelText("Start date")).toHaveValue("2026-11-29");
+  expect(within(form).getByLabelText("End date")).toHaveValue("2026-12-01");
   await userEvent.click(
     within(form).getByRole("button", { name: "Make the copy" }),
   );
@@ -913,7 +916,11 @@ test("duplicate asks for a name and dates, then opens the copy", async () => {
   await waitFor(() => expect(api).toHaveBeenCalledWith("/trips/6/"));
   expect(api).toHaveBeenCalledWith("/trips/5/duplicate/", {
     method: "POST",
-    body: { name: "Yosemite again", start_date: "2027-06-01", end_date: null },
+    body: {
+      name: "Yosemite again",
+      start_date: "2026-11-29",
+      end_date: "2026-12-01",
+    },
   });
 });
 

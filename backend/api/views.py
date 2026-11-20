@@ -225,12 +225,12 @@ class TripViewSet(OwnedModelViewSet):
 	@action(detail=True, methods=["post"])
 	def duplicate(self, request, pk=None):
 		trip = self.get_object()
-		# Same rules as editing a trip; every field is optional.
-		details = TripDetailSerializer(data=request.data, partial=True, context={"request": request})
+		# Same rules as creating a trip, except the name defaults to the next free "Copy of …".
+		data = {"name": sync.copy_name(trip), **request.data}
+		details = TripDetailSerializer(data=data, context={"request": request})
 		details.is_valid(raise_exception=True)
-		name = details.validated_data.pop("name", None) or sync.copy_name(trip)
-		with saving_trip_name(name):
-			copy = sync.duplicate_trip(trip, name=name, **details.validated_data)
+		with saving_trip_name(details.validated_data["name"]):
+			copy = sync.duplicate_trip(trip, **details.validated_data)
 		return Response(TripDetailSerializer(copy, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 

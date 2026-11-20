@@ -1,6 +1,6 @@
 """One-way sync from saved lists to the sections of current trips.
 
-A trip is current when it has no end date or ends today or later; past trips keep what they had.
+A trip is current when it ends today or later; past trips keep what they had.
 Views call these explicitly, inside the same transaction as the list change.
 """
 
@@ -11,12 +11,11 @@ from .models import Trip, TripItem, TripSection
 
 
 def _current(prefix=""):
-	today = timezone.localdate()
-	return Q(**{f"{prefix}end_date__isnull": True}) | Q(**{f"{prefix}end_date__gte": today})
+	return Q(**{f"{prefix}end_date__gte": timezone.localdate()})
 
 
 def is_current(trip):
-	return trip.end_date is None or trip.end_date >= timezone.localdate()
+	return trip.end_date >= timezone.localdate()
 
 
 def _renumber(section):
@@ -122,11 +121,11 @@ def copy_name(trip):
 		number += 1
 
 
-def duplicate_trip(trip, name=None, start_date=None, end_date=None):
-	"""A fresh, unticked copy, named and dated as given (the next free "Copy of …" if no name). Synced sections
+def duplicate_trip(trip, name, start_date, end_date):
+	"""A fresh, unticked copy, named and dated as given. Synced sections
 	are rebuilt from their lists as they are now, keeping this trip's own amounts and deletions; everything else
 	is copied."""
-	copy = Trip.objects.create(user=trip.user, name=name or copy_name(trip), start_date=start_date, end_date=end_date)
+	copy = Trip.objects.create(user=trip.user, name=name, start_date=start_date, end_date=end_date)
 	for section in trip.sections.prefetch_related("items"):
 		new = TripSection.objects.create(
 			trip=copy, saved_list=section.saved_list, custom_name=section.custom_name, order=section.order

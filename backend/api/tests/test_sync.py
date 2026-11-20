@@ -21,7 +21,7 @@ def _toiletries(c):
 
 
 def _trip_with(c, lst, dates=NEXT_MONTH, name="Lisbon"):
-	"""A trip holding `lst` as its only section. Pass dates=(None, None) for an undated trip."""
+	"""A trip holding `lst` as its only section."""
 	start, end = dates
 	trip = c.post("/api/trips/", {"name": name, "start_date": start, "end_date": end}, format="json").data
 	section = c.post("/api/trip-sections/", {"trip": trip["id"], "saved_list": lst["id"]}, format="json").data
@@ -74,17 +74,6 @@ def test_new_list_item_skips_past_trips(auth_client):
 	c.post("/api/saved-list-items/", {"saved_list": lst["id"], "name": "Floss"}, format="json")
 
 	assert [i["name"] for i in _items(c, trip)] == ["Toothbrush", "Sunscreen"]
-
-
-@pytest.mark.django_db
-def test_trip_with_no_end_date_is_current(auth_client):
-	c, _ = auth_client
-	lst, _ = _toiletries(c)
-	trip, _ = _trip_with(c, lst, dates=(None, None))
-
-	c.post("/api/saved-list-items/", {"saved_list": lst["id"], "name": "Floss"}, format="json")
-
-	assert "Floss" in [i["name"] for i in _items(c, trip)]
 
 
 @pytest.mark.django_db
@@ -403,18 +392,6 @@ def test_catch_up_keeps_the_tick_when_the_amount_went_down(auth_client):
 	c.patch(f"/api/trips/{trip['id']}/", {"end_date": NEXT_MONTH[1]}, format="json")
 
 	assert _shape(c, trip)[1] == ("Sunscreen", 1, True)
-
-
-@pytest.mark.django_db
-def test_clearing_end_date_catches_up(auth_client):
-	c, _ = auth_client
-	lst, _ = _toiletries(c)
-	trip, _ = _trip_with(c, lst, dates=LAST_MONTH)
-	c.post("/api/saved-list-items/", {"saved_list": lst["id"], "name": "Floss"}, format="json")
-
-	c.patch(f"/api/trips/{trip['id']}/", {"end_date": None}, format="json")
-
-	assert [i["name"] for i in _items(c, trip)] == ["Toothbrush", "Sunscreen", "Floss"]
 
 
 @pytest.mark.django_db

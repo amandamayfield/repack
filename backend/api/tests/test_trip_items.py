@@ -1,11 +1,12 @@
 import pytest
 
 from api.models import TripItem
+from api.tests.dates import UPCOMING
 
 
 def _trip_with_synced_section(c):
 	"""A trip holding the 'Toiletries' list: Toothbrush, and Sunscreen ×2."""
-	trip = c.post("/api/trips/", {"name": "Lisbon"}, format="json").data
+	trip = c.post("/api/trips/", {"name": "Lisbon", **UPCOMING}, format="json").data
 	lst = c.post("/api/saved-lists/", {"name": "Toiletries"}, format="json").data
 	c.post("/api/saved-list-items/", {"saved_list": lst["id"], "name": "Toothbrush"}, format="json")
 	c.post("/api/saved-list-items/", {"saved_list": lst["id"], "name": "Sunscreen", "quantity": 2}, format="json")
@@ -32,7 +33,7 @@ def test_add_extra_to_synced_section_goes_last(auth_client):
 @pytest.mark.django_db
 def test_add_item_to_trip_only_section(auth_client):
 	c, _ = auth_client
-	trip = c.post("/api/trips/", {"name": "Lisbon"}, format="json").data
+	trip = c.post("/api/trips/", {"name": "Lisbon", **UPCOMING}, format="json").data
 	section = c.post("/api/trip-sections/", {"trip": trip["id"], "name": "Wedding"}, format="json").data
 
 	r = c.post("/api/trip-items/", {"section": section["id"], "name": "Suit"}, format="json")

@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 
 from api.models import SavedList, SavedListItem, Trip, TripItem, TripSection
+from api.tests.dates import UPCOMING
 
 
 @pytest.fixture
@@ -13,7 +14,7 @@ def user(db):
 
 @pytest.fixture
 def trip(user):
-	return Trip.objects.create(user=user, name="Lisbon")
+	return Trip.objects.create(user=user, name="Lisbon", **UPCOMING)
 
 
 @pytest.fixture

@@ -45,7 +45,7 @@ React 19 (Vite) → Django 5.2 + DRF → PostgreSQL 16
 ### Data model
 - **SavedList**: `{user, name, description, created_at, updated_at}`, with many `items`.
 - **SavedListItem**: `{saved_list, name, quantity?, order}`. It has no `packed` field and can't move to another list.
-- **Trip**: `{user, name, start_date?, end_date?, created_at, updated_at}`. `end_date >= start_date` is validated. Names are unique per user, ignoring case, on create, edit and duplicate (a 400 on `name`). `validate_name` gives the message; the `unique_trip_name_per_user` constraint catches two saves at once, and `saving_trip_name` in `views.py` turns that into the same 400.
+- **Trip**: `{user, name, start_date, end_date, created_at, updated_at}`. Both dates are required (migration `0010` deleted older trips missing either), and `end_date >= start_date` is validated. Names are unique per user, ignoring case, on create, edit and duplicate (a 400 on `name`). `validate_name` gives the message; the `unique_trip_name_per_user` constraint catches two saves at once, and `saving_trip_name` in `views.py` turns that into the same 400.
 - **TripSection**: `{trip, saved_list?, custom_name, order}`. `saved_list` null means trip-only. One section per list per trip (unique constraint). `display_name` is `custom_name`, else the list's name, else "Deleted list".
 - **TripItem**: `{section, source_item?, from_list, name, quantity?, packed, quantity_overridden, removed, order}`.
   - `from_list` marks a synced item; `False` is a trip-only extra. Use it, not `source_item is None`, which also happens when a past trip's list item was deleted.
@@ -54,7 +54,7 @@ React 19 (Vite) → Django 5.2 + DRF → PostgreSQL 16
 - `quantity` must be ≥ 1 when set.
 
 ### Sync rules (`sync.py`)
-- A trip is **current** when `end_date` is empty or today or later (server date, UTC). Only current trips sync; past trips stay as they were.
+- A trip is **current** when its `end_date` is today or later (server date, UTC). Only current trips sync; past trips stay as they were.
 - Removed items still get list renames and amount changes, so a restored item matches the list as it is now.
 - List item added → appended after the section's synced items, before extras. Renamed → renamed and unticked. Amount changed → updated, and unticked only if it went up (a blank amount counts as 1), unless the trip set its own amount (`quantity_overridden`), which wins and keeps its tick. Deleted → removed from current trips.
 - List renamed → past sections keep the old name. List deleted → removed from current trips; past trips keep it as a trip-only section whose items become extras.
@@ -84,7 +84,7 @@ Trip sections:
 - `POST trip-sections/` with `{trip, saved_list}` copies the list in; with `{trip, name}` makes a trip-only heading. The same list twice on one trip is a **400** `{saved_list: ["This list is already on this trip."]}`.
 - `PATCH {name}` renames on this trip only (blank restores the list's name on a synced section). `trip` and `saved_list` can't change. `DELETE` removes the section and its items; adding the list again gives a fresh copy.
 - `POST trips/{id}/reorder-sections/` with `{section_ids}` → 204: every section of the trip, once each, else 400.
-- `POST trips/{id}/duplicate/` with optional `{name, start_date, end_date}` (validated like a trip edit) → 201 with the copy's detail.
+- `POST trips/{id}/duplicate/` with `{start_date, end_date}` and an optional `name` (validated like a new trip) → 201 with the copy's detail.
 - `POST trips/{id}/add-lists/` with `{saved_lists}` → 204. Adds a synced section per list, in the order given, all or none: any id that isn't the user's, a repeat, or a list already on the trip is a 400. `POST trips/` accepts the same `saved_lists` to start a trip with them.
 - `POST trips/{id}/untick-all/` → 204. Unticks every item on the trip, or only one section's with `{section}` (a section of another trip is a 400). Removed items are left alone.
 
@@ -104,7 +104,7 @@ Trip items (`trip-items/`):
 - **Routes** (`App.jsx`):
   - `/login`
   - `/trips` (luggage-tag cards with a progress bar; the New trip form can tick saved lists, then opens the trip)
-  - `/trips/:id` (progress ring hero; sections with Hide/Show, rename, move, remove, items and their own Add item form; "Add a section" ticks any number of saved lists or makes a heading; duplicate (asks for a name and dates)/edit/delete trip)
+  - `/trips/:id` (progress ring hero; sections with Hide/Show, rename, move, remove, items and their own Add item form; "Add a section" ticks any number of saved lists or makes a heading; duplicate (asks for a name and dates, prefilled with the same length from today by `sameLengthFromToday` in `lib/dates.js`)/edit/delete trip)
   - `/lists`, `/lists/:id` (editor, edit details)
 - **Shared components:**
   - `ItemRow`: view, inline edit and delete; it renders the checkbox only when given `onToggle`. Amounts show as `×3`, read aloud as ", quantity 3".

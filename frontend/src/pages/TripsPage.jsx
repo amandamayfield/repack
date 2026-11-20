@@ -45,7 +45,7 @@ export default function TripsPage() {
               <li key={trip.id} className="trip-card">
                 <Link to={`/trips/${trip.id}`} className="trip-card__link">
                   <h2 className="trip-card__name">{trip.name}</h2>
-                  {dates && <p className="trip-card__dates">{dates}</p>}
+                  <p className="trip-card__dates">{dates}</p>
                   <ProgressBar
                     value={trip.packed_count}
                     max={trip.total_count}

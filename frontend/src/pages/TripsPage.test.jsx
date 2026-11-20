@@ -29,6 +29,11 @@ beforeEach(() => {
   api.mockReset();
 });
 
+async function fillDates(start = "2026-07-01", end = "2026-07-03") {
+  await userEvent.type(screen.getByLabelText("Start date"), start);
+  await userEvent.type(screen.getByLabelText("End date"), end);
+}
+
 test("renders a card per trip with server-provided progress counts", async () => {
   api.mockImplementation((path) => {
     if (path === "/auth/me/")
@@ -92,14 +97,7 @@ test("creating a trip posts name + dates and opens it", async () => {
   await screen.findByText(/No trips yet/);
 
   await userEvent.type(screen.getByLabelText("Trip name"), "Yosemite");
-  await userEvent.type(
-    screen.getByLabelText("Start date (optional)"),
-    "2026-07-01",
-  );
-  await userEvent.type(
-    screen.getByLabelText("End date (optional)"),
-    "2026-07-03",
-  );
+  await fillDates();
   await userEvent.click(screen.getByRole("button", { name: "Add trip" }));
 
   expect(
@@ -115,6 +113,28 @@ test("creating a trip posts name + dates and opens it", async () => {
   });
 });
 
+test("adding a trip without its dates says which are missing", async () => {
+  createMock();
+  renderPage();
+  await screen.findByText(/No trips yet/);
+  const add = screen.getByRole("button", { name: "Add trip" });
+
+  await userEvent.type(screen.getByLabelText("Trip name"), "Yosemite");
+  expect(screen.getByLabelText("Start date")).toBeRequired();
+  expect(screen.getByLabelText("End date")).toBeRequired();
+  expect(add).toBeEnabled();
+  await userEvent.click(add);
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Add a start date and an end date.",
+  );
+
+  await userEvent.type(screen.getByLabelText("Start date"), "2026-07-01");
+  await userEvent.click(add);
+  expect(screen.getByRole("alert")).toHaveTextContent("Add an end date.");
+
+  expect(api).not.toHaveBeenCalledWith("/trips/", expect.anything());
+});
+
 test("saved lists ticked on the new trip form are added with it", async () => {
   createMock([
     { id: 98, name: "Beach" },
@@ -124,6 +144,7 @@ test("saved lists ticked on the new trip form are added with it", async () => {
   await screen.findByText(/No trips yet/);
 
   await userEvent.type(screen.getByLabelText("Trip name"), "Lisbon");
+  await fillDates();
   await userEvent.click(
     await screen.findByRole("checkbox", { name: "Hiking" }),
   );
@@ -132,7 +153,12 @@ test("saved lists ticked on the new trip form are added with it", async () => {
   await screen.findByRole("heading", { name: "Trip page" });
   expect(api).toHaveBeenCalledWith("/trips/", {
     method: "POST",
-    body: { name: "Lisbon", saved_lists: [97] },
+    body: {
+      name: "Lisbon",
+      start_date: "2026-07-01",
+      end_date: "2026-07-03",
+      saved_lists: [97],
+    },
   });
 });
 
@@ -158,6 +184,7 @@ test("a trip name you already use shows why and stays on the form", async () => 
   await screen.findByText(/No trips yet/);
 
   await userEvent.type(screen.getByLabelText("Trip name"), "Lisbon");
+  await fillDates();
   await userEvent.click(screen.getByRole("button", { name: "Add trip" }));
 
   expect(await screen.findByRole("alert")).toHaveTextContent(message);

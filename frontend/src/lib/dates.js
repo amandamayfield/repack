@@ -8,15 +8,21 @@ const fmt = new Intl.DateTimeFormat(undefined, {
 });
 
 function parse(iso) {
-  return iso ? new Date(`${iso}T00:00:00Z`) : null;
+  return new Date(`${iso}T00:00:00Z`);
 }
 
-// "Jul 1 – 3, 2026", "Jul 1, 2026", or null when the trip has no dates.
+// "Jul 1 – 3, 2026", or "Jul 1, 2026" for a one-day trip.
 export function formatDateRange(start, end) {
-  const s = parse(start);
-  const e = parse(end);
-  if (s && e) return fmt.formatRange(s, e);
-  if (s) return `From ${fmt.format(s)}`;
-  if (e) return `Until ${fmt.format(e)}`;
-  return null;
+  return fmt.formatRange(parse(start), parse(end));
+}
+
+function iso(ms) {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+// The same number of days as start–end, starting on the user's own today.
+export function sameLengthFromToday(start, end, today = new Date()) {
+  const from = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const length = parse(end) - parse(start);
+  return { start_date: iso(from), end_date: iso(from + length) };
 }

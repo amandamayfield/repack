@@ -1,6 +1,7 @@
 import pytest
 
 from api.models import TripItem
+from api.tests.dates import UPCOMING
 
 
 def _list_with_items(c, name="Camping"):
@@ -11,7 +12,7 @@ def _list_with_items(c, name="Camping"):
 
 
 def _trip(c, name="Lisbon"):
-	return c.post("/api/trips/", {"name": name}, format="json").data
+	return c.post("/api/trips/", {"name": name, **UPCOMING}, format="json").data
 
 
 def _add_list(c, trip, lst):
@@ -310,7 +311,7 @@ def test_new_trip_can_start_with_lists(auth_client):
 	c, _ = auth_client
 	beach, hiking = _list_with_items(c, "Beach"), _list_with_items(c, "Hiking")
 
-	r = c.post("/api/trips/", {"name": "Lisbon", "saved_lists": [beach["id"], hiking["id"]]}, format="json")
+	r = c.post("/api/trips/", {"name": "Lisbon", "saved_lists": [beach["id"], hiking["id"]], **UPCOMING}, format="json")
 
 	assert r.status_code == 201
 	assert [(s["name"], len(s["items"])) for s in r.data["sections"]] == [("Beach", 2), ("Hiking", 2)]
@@ -321,7 +322,7 @@ def test_new_trip_with_a_bad_list_is_not_created(auth_client, other_client):
 	c, _ = auth_client
 	adams = _list_with_items(other_client, "Adam's")
 
-	r = c.post("/api/trips/", {"name": "Lisbon", "saved_lists": [adams["id"]]}, format="json")
+	r = c.post("/api/trips/", {"name": "Lisbon", "saved_lists": [adams["id"]], **UPCOMING}, format="json")
 
 	assert r.status_code == 400
 	assert c.get("/api/trips/").data == []
