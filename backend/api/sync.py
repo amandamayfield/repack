@@ -18,7 +18,7 @@ def is_current(trip):
 	return trip.end_date >= timezone.localdate()
 
 
-def _renumber(section):
+def renumber(section):
 	"""Synced items in the list's order, then extras in the order they were added."""
 	items = list(section.items.select_related("source_item"))
 	synced = sorted(
@@ -44,7 +44,7 @@ def sync_item_created(item):
 	sections = TripSection.objects.filter(Q(saved_list=item.saved_list) & _current("trip__"))
 	for section in sections:
 		_copy(section, item).save()
-		_renumber(section)
+		renumber(section)
 
 
 def sync_item_updated(item, old_name, old_quantity):
@@ -68,6 +68,11 @@ def sync_item_updated(item, old_name, old_quantity):
 def sync_item_deleted(item):
 	"""Call before deleting `item`. Past trips' copies are then unlinked by SET_NULL."""
 	TripItem.objects.filter(Q(source_item=item) & _current("section__trip__")).delete()
+
+
+def sync_list_reordered(saved_list):
+	for section in TripSection.objects.filter(Q(saved_list=saved_list) & _current("trip__")):
+		renumber(section)
 
 
 def sync_list_renamed(saved_list, old_name):
@@ -104,7 +109,7 @@ def catch_up_trip(trip):
 					item.packed = False
 				item.quantity = source.quantity
 			item.save(update_fields=["name", "quantity", "packed"])
-		_renumber(section)
+		renumber(section)
 
 
 def copy_name(trip):
@@ -144,5 +149,5 @@ def duplicate_trip(trip, name, start_date, end_date):
 		TripItem.objects.bulk_create(
 			TripItem(section=new, name=i.name, quantity=i.quantity, order=i.order) for i in items if not i.from_list
 		)
-		_renumber(new)
+		renumber(new)
 	return copy

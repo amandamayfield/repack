@@ -49,6 +49,15 @@ export default function ListEditorPage() {
     reload();
   }
 
+  // Errors propagate to ItemForm, which shows them.
+  async function handleMoveItem(item, direction) {
+    await api(`/saved-list-items/${item.id}/move/`, {
+      method: "POST",
+      body: { direction },
+    });
+    reload();
+  }
+
   async function handleDeleteItem(item) {
     const ok = await confirm({
       title: `Delete "${item.name}"?`,
@@ -122,10 +131,13 @@ export default function ListEditorPage() {
         </p>
       ) : (
         <ul className="item-list">
-          {list.items.map((item) => (
+          {list.items.map((item, index) => (
             <ItemRow
               key={item.id}
               item={item}
+              onMove={(direction) => handleMoveItem(item, direction)}
+              canMoveUp={index > 0}
+              canMoveDown={index < list.items.length - 1}
               onSave={(body) => handleSaveItem(item, body)}
               onDelete={() => handleDeleteItem(item)}
             />

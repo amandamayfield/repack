@@ -813,6 +813,53 @@ test("a failed way back shows the server's reason in the form", async () => {
   );
 });
 
+test("extras move among the extras; synced items follow their list", async () => {
+  const [camping, wedding] = TRIP.sections;
+  const gloves = {
+    id: 5,
+    name: "Gloves",
+    quantity: null,
+    packed: false,
+    is_synced: false,
+  };
+  baseMock({
+    trip: {
+      ...TRIP,
+      sections: [{ ...camping, items: [...camping.items, gloves] }, wedding],
+    },
+  });
+  renderTrip();
+  await loaded();
+
+  await userEvent.click(screen.getByRole("button", { name: "Edit Socks" }));
+  expect(screen.queryByRole("button", { name: "Move Socks up" })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+  await userEvent.click(screen.getByRole("button", { name: "Edit Gloves" }));
+  expect(
+    screen.getByRole("button", { name: "Move Gloves down" }),
+  ).toBeDisabled();
+  await userEvent.click(screen.getByRole("button", { name: "Move Gloves up" }));
+
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith("/trip-items/5/move/", {
+      method: "POST",
+      body: { direction: "up" },
+    }),
+  );
+});
+
+test("the first extra can't move up past the synced items", async () => {
+  baseMock();
+  renderTrip();
+  await loaded();
+
+  await userEvent.click(screen.getByRole("button", { name: "Edit Hat" }));
+
+  expect(screen.getByRole("button", { name: "Move Hat up" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Move Hat down" })).toBeDisabled();
+});
+
 test("an extra's edit form can change its name", async () => {
   baseMock();
   renderTrip();

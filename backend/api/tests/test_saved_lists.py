@@ -93,3 +93,50 @@ def test_cannot_touch_others_items_or_move_items_onto_their_list(auth_client, ot
 	# ...and I can't re-point my item at their list.
 	r = c.patch(f"/api/saved-list-items/{item['id']}/", {"saved_list": adam_list["id"]}, format="json")
 	assert r.status_code == 400
+
+
+def _list_abc(c):
+	lst = c.post("/api/saved-lists/", {"name": "Camping"}, format="json").data
+	items = [c.post("/api/saved-list-items/", {"saved_list": lst["id"], "name": n}, format="json").data for n in "ABC"]
+	return lst, items
+
+
+def _names(c, lst):
+	return [i["name"] for i in c.get(f"/api/saved-lists/{lst['id']}/").data["items"]]
+
+
+@pytest.mark.django_db
+def test_moving_a_list_item_swaps_it_with_its_neighbour(auth_client):
+	c, _ = auth_client
+	lst, (a, _, c_item) = _list_abc(c)
+
+	assert c.post(f"/api/saved-list-items/{c_item['id']}/move/", {"direction": "up"}, format="json").status_code == 204
+	assert _names(c, lst) == ["A", "C", "B"]
+	assert c.post(f"/api/saved-list-items/{a['id']}/move/", {"direction": "down"}, format="json").status_code == 204
+	assert _names(c, lst) == ["C", "A", "B"]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(("which", "direction"), [(0, "up"), (2, "down"), (1, "sideways"), (1, None)])
+def test_a_list_item_cant_move_past_the_ends_or_without_a_direction(auth_client, which, direction):
+	c, _ = auth_client
+	lst, items = _list_abc(c)
+	body = {} if direction is None else {"direction": direction}
+
+	r = c.post(f"/api/saved-list-items/{items[which]['id']}/move/", body, format="json")
+
+	assert r.status_code == 400
+	assert _names(c, lst) == ["A", "B", "C"]
+
+
+@pytest.mark.django_db
+def test_cant_move_others_list_items(auth_client, other_client):
+	c, _ = auth_client
+	_, items = _list_abc(c)
+
+	assert (
+		other_client.post(
+			f"/api/saved-list-items/{items[1]['id']}/move/", {"direction": "up"}, format="json"
+		).status_code
+		== 404
+	)

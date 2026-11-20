@@ -7,11 +7,15 @@ import { errorMessage } from "../api/ApiError";
 // as text instead, for trip items synced from a saved list.
 // `onSubmit(body)` returns a promise — the form manages pending/error around it.
 // `onFollowList` (a synced item with the trip's own amount) offers the list's amount back.
+// `onMove(direction)` adds Move up / Move down, disabled where `canMoveUp` / `canMoveDown` is false.
 export default function ItemForm({
   initial = {},
   lockName = false,
   onSubmit,
   onFollowList,
+  onMove,
+  canMoveUp = false,
+  canMoveDown = false,
   onCancel,
   submitLabel = "Save",
   idPrefix = "item",
@@ -23,6 +27,7 @@ export default function ItemForm({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(null);
   const nameInput = useRef(null);
+  const moving = useRef(false);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -59,6 +64,20 @@ export default function ItemForm({
       setError(errorMessage(err, "Couldn't use the list's amount. Try again."));
     } finally {
       setPending(false);
+    }
+  }
+
+  // Guarded by a ref, not by disabling the button: that would drop keyboard focus on every step.
+  async function handleMove(direction) {
+    if (moving.current) return;
+    moving.current = true;
+    setError(null);
+    try {
+      await onMove(direction);
+    } catch (err) {
+      setError(errorMessage(err, "Couldn't move the item. Try again."));
+    } finally {
+      moving.current = false;
     }
   }
 
@@ -137,6 +156,28 @@ export default function ItemForm({
           </button>
         )}
       </div>
+      {onMove && (
+        <div className="form__actions">
+          <button
+            type="button"
+            className="button button--ghost button--small"
+            onClick={() => handleMove("up")}
+            disabled={!canMoveUp}
+            aria-label={`Move ${initial.name} up`}
+          >
+            Move up
+          </button>
+          <button
+            type="button"
+            className="button button--ghost button--small"
+            onClick={() => handleMove("down")}
+            disabled={!canMoveDown}
+            aria-label={`Move ${initial.name} down`}
+          >
+            Move down
+          </button>
+        </div>
+      )}
       {error && (
         <p role="alert" className="form-error">
           {error}

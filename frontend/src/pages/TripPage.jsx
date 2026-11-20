@@ -208,6 +208,15 @@ function TripDetail({ trip, reload }) {
   }
 
   // Errors propagate to ItemForm, which shows them.
+  async function handleMoveItem(item, direction) {
+    await api(`/trip-items/${item.id}/move/`, {
+      method: "POST",
+      body: { direction },
+    });
+    reload();
+  }
+
+  // Errors propagate to ItemForm, which shows them.
   async function handleFollowListItem(item) {
     await api(`/trip-items/${item.id}/follow-list/`, { method: "POST" });
     reload();
@@ -397,6 +406,7 @@ function TripDetail({ trip, reload }) {
                 onDeleteItem={handleDeleteItem}
                 onRestoreItem={handleRestoreItem}
                 onFollowListItem={handleFollowListItem}
+                onMoveItem={handleMoveItem}
                 alsoIn={(item) => otherSectionsWith(item, section)}
               />
             ))}

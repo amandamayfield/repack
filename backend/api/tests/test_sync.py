@@ -253,6 +253,20 @@ def test_list_item_edit_skips_past_trips(auth_client):
 	assert _shape(c, trip)[0] == ("Toothbrush", None, True)
 
 
+@pytest.mark.django_db
+def test_moving_a_list_item_reorders_current_trips_but_not_past_ones(auth_client):
+	c, _ = auth_client
+	lst, items = _toiletries(c)
+	current, section = _trip_with(c, lst)
+	past, _ = _trip_with(c, lst, dates=LAST_MONTH, name="Berlin")
+	c.post("/api/trip-items/", {"section": section["id"], "name": "Hair ties"}, format="json")
+
+	c.post(f"/api/saved-list-items/{items['Sunscreen']['id']}/move/", {"direction": "up"}, format="json")
+
+	assert [i["name"] for i in _items(c, current)] == ["Sunscreen", "Toothbrush", "Hair ties"]
+	assert [i["name"] for i in _items(c, past)] == ["Toothbrush", "Sunscreen"]
+
+
 # --- Item deleted from the list ---
 
 

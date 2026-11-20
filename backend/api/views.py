@@ -80,6 +80,21 @@ def with_same_items(trip, items):
 	)
 
 
+def move_one_step(item, siblings, direction):
+	"""Swap `item` with its neighbour among `siblings`, numbering them 0, 1, 2…; a 400 at either end."""
+	if direction not in ("up", "down"):
+		raise serializers.ValidationError({"direction": ['Send "up" or "down".']})
+	ordered = list(siblings.order_by("order", "id"))
+	here = ordered.index(item)
+	there = here - 1 if direction == "up" else here + 1
+	if not 0 <= there < len(ordered):
+		raise serializers.ValidationError({"direction": [f"It's already {'first' if direction == 'up' else 'last'}."]})
+	ordered[here], ordered[there] = ordered[there], ordered[here]
+	for order, sibling in enumerate(ordered):
+		sibling.order = order
+	type(item).objects.bulk_update(ordered, ["order"])
+
+
 def add_list_sections(trip, saved_lists):
 	start = next_order(trip.sections.all())
 	for offset, saved_list in enumerate(saved_lists):
@@ -156,6 +171,14 @@ class SavedListItemViewSet(viewsets.ModelViewSet):
 	def perform_destroy(self, item):
 		sync.sync_item_deleted(item)
 		item.delete()
+
+	@action(detail=True, methods=["post"])
+	def move(self, request, pk=None):
+		item = self.get_object()
+		with transaction.atomic():
+			move_one_step(item, item.saved_list.items.all(), request.data.get("direction"))
+			sync.sync_list_reordered(item.saved_list)
+		return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class TripViewSet(OwnedModelViewSet):
@@ -295,6 +318,19 @@ class TripItemViewSet(viewsets.ModelViewSet):
 			item.save(update_fields=["removed"])
 		else:
 			item.delete()
+
+	@action(detail=True, methods=["post"])
+	def move(self, request, pk=None):
+		"""Extras only: synced items keep their list's order, ahead of the extras."""
+		item = self.get_object()
+		if item.from_list:
+			raise serializers.ValidationError(
+				{"direction": ["This item follows its saved list's order. Move it there."]}
+			)
+		with transaction.atomic():
+			move_one_step(item, item.section.items.filter(from_list=False), request.data.get("direction"))
+			sync.renumber(item.section)
+		return Response(status=status.HTTP_204_NO_CONTENT)
 
 	@action(detail=True, methods=["post"], url_path="follow-list")
 	def follow_list(self, request, pk=None):

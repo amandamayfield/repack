@@ -345,3 +345,37 @@ def test_cant_restore_another_users_item(auth_client, other_client):
 
 	assert other_client.post(f"/api/trip-items/{toothbrush['id']}/restore/").status_code == 404
 	assert TripItem.objects.get(id=toothbrush["id"]).removed is True
+
+
+@pytest.mark.django_db
+def test_extras_move_among_the_extras(auth_client):
+	c, _ = auth_client
+	trip, section = _trip_with_synced_section(c)
+	hat, scarf = (
+		c.post("/api/trip-items/", {"section": section["id"], "name": n}, format="json").data for n in ("Hat", "Scarf")
+	)
+
+	r = c.post(f"/api/trip-items/{scarf['id']}/move/", {"direction": "up"}, format="json")
+
+	assert r.status_code == 204
+	assert [i["name"] for i in _items(c, trip)] == ["Toothbrush", "Sunscreen", "Scarf", "Hat"]
+	# The first extra can't move above the synced items, nor the last past the end.
+	for item, direction in [(scarf, "up"), (hat, "down")]:
+		assert c.post(f"/api/trip-items/{item['id']}/move/", {"direction": direction}, format="json").status_code == 400
+	assert [i["name"] for i in _items(c, trip)] == ["Toothbrush", "Sunscreen", "Scarf", "Hat"]
+
+
+@pytest.mark.django_db
+def test_synced_items_follow_their_lists_order(auth_client, other_client):
+	c, _ = auth_client
+	trip, section = _trip_with_synced_section(c)
+	sunscreen = section["items"][1]
+
+	r = c.post(f"/api/trip-items/{sunscreen['id']}/move/", {"direction": "up"}, format="json")
+
+	assert r.status_code == 400
+	assert [i["name"] for i in _items(c, trip)] == ["Toothbrush", "Sunscreen"]
+	assert (
+		other_client.post(f"/api/trip-items/{sunscreen['id']}/move/", {"direction": "up"}, format="json").status_code
+		== 404
+	)

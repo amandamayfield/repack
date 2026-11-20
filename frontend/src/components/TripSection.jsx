@@ -21,6 +21,7 @@ export default function TripSection({
   onDeleteItem,
   onRestoreItem,
   onFollowListItem,
+  onMoveItem,
   alsoIn,
 }) {
   const headingId = useId();
@@ -34,6 +35,18 @@ export default function TripSection({
     ? section.items.filter((item) => !item.packed)
     : section.items;
   const hiddenCount = section.items.length - shownItems.length;
+  // Only extras move on a trip; synced items keep their list's order, ahead of them.
+  const extras = section.items.filter((item) => !item.is_synced);
+
+  function moveProps(item) {
+    const index = extras.indexOf(item);
+    if (index === -1) return {};
+    return {
+      onMove: (direction) => onMoveItem(item, direction),
+      canMoveUp: index > 0,
+      canMoveDown: index < extras.length - 1,
+    };
+  }
 
   // Ticking an item while packed items are hidden unmounts its checkbox, which
   // would drop keyboard focus to <body>. Hand it to the note that says where it went.
@@ -135,6 +148,7 @@ export default function TripSection({
                   onSave={(body) => onSaveItem(item, body)}
                   onDelete={() => onDeleteItem(item)}
                   onFollowList={() => onFollowListItem(item)}
+                  {...moveProps(item)}
                 />
               ))}
             </ul>

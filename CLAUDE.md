@@ -57,6 +57,7 @@ React 19 (Vite) → Django 5.2 + DRF → PostgreSQL 16
 - A trip is **current** when its `end_date` is today or later (server date, UTC). Only current trips sync; past trips stay as they were.
 - Removed items still get list renames and amount changes, so a restored item matches the list as it is now.
 - List item added → appended after the section's synced items, before extras. Renamed → renamed and unticked. Amount changed → updated, and unticked only if it went up (a blank amount counts as 1), unless the trip set its own amount (`quantity_overridden`), which wins and keeps its tick. Deleted → removed from current trips.
+- List item moved → current trips' sections re-sort to the list's order (`sync_list_reordered`); past trips keep theirs.
 - List renamed → past sections keep the old name. List deleted → removed from current trips; past trips keep it as a trip-only section whose items become extras.
 - A trip whose end date moves from past to current catches up (`catch_up_trip`).
 - Duplicate trip rebuilds synced sections from the list as it is now, then reapplies the trip's own amounts and deletions; extras and trip-only sections are copied; nothing is ticked. The copy takes the name and dates it's given; with no name it's the next free "Copy of …", then "(2)", "(3)"… (`sync.copy_name`, also sent as the detail's `copy_name` for the form to prefill).
@@ -78,6 +79,7 @@ CRUD (DRF routers):
   - `GET saved-lists/` returns summaries without items; the detail view embeds `items`.
   - `GET trips/` returns `packed_count` and `total_count` (computed in the database, `removed` left out, counting each item name once; see "Same item in two sections"); the detail view embeds `sections`, each `{id, name, saved_list, is_synced, order, items, removed_items}` (`removed_items` is `[{id, name}]`).
 - `order` is assigned by the server on create (appended last). Clients don't send it.
+- `POST saved-list-items/{id}/move/` and `POST trip-items/{id}/move/` with `{direction: "up" | "down"}` → 204: swap with the neighbour, worked out on the server (`move_one_step`). Past either end, or a bad direction, is a 400. On a trip only extras move, among the extras; a synced item is a 400. The controls are Move up / Move down in the item's Edit form.
 - `PATCH saved-list-items/{id}/` also returns `unticked_trips`: the names of current trips where that edit unticked the item. The list editor shows them.
 
 Trip sections:

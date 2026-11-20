@@ -188,6 +188,57 @@ test("an edit that unticks nothing shows no notice", async () => {
   expect(screen.queryByRole("status")).not.toBeInTheDocument();
 });
 
+test("an item's edit form moves it, and stays open for the next step", async () => {
+  baseMock();
+  renderEditor();
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Edit Sunscreen" }),
+  );
+  expect(
+    screen.getByRole("button", { name: "Move Sunscreen down" }),
+  ).toBeDisabled();
+
+  await userEvent.click(
+    screen.getByRole("button", { name: "Move Sunscreen up" }),
+  );
+
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith("/saved-list-items/2/move/", {
+      method: "POST",
+      body: { direction: "up" },
+    }),
+  );
+  await waitFor(() =>
+    expect(
+      api.mock.calls.filter(([path]) => path === "/saved-lists/3/"),
+    ).toHaveLength(2),
+  );
+  expect(
+    screen.getByLabelText("Quantity (optional)", { selector: "#edit-2-qty" }),
+  ).toBeInTheDocument();
+});
+
+test("moving leaves the button enabled for keyboard focus, and a double click moves once", async () => {
+  baseMock({
+    handler: (path) =>
+      path === "/saved-list-items/1/move/" ? new Promise(() => {}) : undefined,
+  });
+  renderEditor();
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Edit Shirts" }),
+  );
+  const down = screen.getByRole("button", { name: "Move Shirts down" });
+
+  await userEvent.dblClick(down);
+
+  // A browser drops focus from a button that becomes disabled (jsdom doesn't),
+  // so check the cause: it stays enabled while the move is in flight.
+  expect(down).toBeEnabled();
+  expect(
+    api.mock.calls.filter(([path]) => path === "/saved-list-items/1/move/"),
+  ).toHaveLength(1);
+});
+
 test("deleting an item (confirmed) issues a DELETE", async () => {
   baseMock({
     handler: (path, opts) =>
