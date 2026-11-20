@@ -88,3 +88,15 @@ def test_register_explains_common_password():
 	r = c.post("/api/auth/register/", {"username": "amanda", "password": "password123"}, format="json")
 	assert r.status_code == 400
 	assert r.data["password"] == [COMMON_PASSWORD_MESSAGE]
+
+
+@pytest.mark.django_db
+def test_register_reports_username_and_password_problems_together():
+	User.objects.create_user(username="harold", password="pw12345!")
+	c = APIClient()
+
+	r = c.post("/api/auth/register/", {"username": "harold", "password": "a"}, format="json")
+
+	assert r.status_code == 400
+	assert set(r.data) == {"username", "password"}
+	assert len(r.data["password"]) > 1  # every password rule it breaks, not just the first

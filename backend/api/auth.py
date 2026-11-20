@@ -18,14 +18,16 @@ class UserSerializer(serializers.ModelSerializer):
 		model = User
 		fields = ["id", "username", "password"]
 
-	def validate(self, attrs):
+	def validate_password(self, value):
 		# create_user() doesn't run AUTH_PASSWORD_VALIDATORS on its own. Pass an
 		# unsaved User so UserAttributeSimilarityValidator can compare the username.
+		# A field validator, not validate(), so a username error doesn't hide these.
+		username = str(self.initial_data.get("username") or "")
 		try:
-			password_validation.validate_password(attrs["password"], User(username=attrs["username"]))
+			password_validation.validate_password(value, User(username=username))
 		except DjangoValidationError as e:
-			raise serializers.ValidationError({"password": list(e.messages)})
-		return attrs
+			raise serializers.ValidationError(list(e.messages)) from None
+		return value
 
 	def create(self, validated_data):
 		return User.objects.create_user(**validated_data)
