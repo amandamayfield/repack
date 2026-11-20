@@ -36,6 +36,11 @@ def _copy(section, source):
 	return TripItem(section=section, source_item=source, from_list=True, name=source.name, quantity=source.quantity)
 
 
+def _amount_went_up(old, new):
+	"""Less than before is already packed, so only more needs a fresh tick. A blank amount counts as one."""
+	return (new or 1) > (old or 1)
+
+
 def sync_item_created(item):
 	sections = TripSection.objects.filter(Q(saved_list=item.saved_list) & _current("trip__"))
 	for section in sections:
@@ -44,13 +49,21 @@ def sync_item_created(item):
 
 
 def sync_item_updated(item, old_name, old_quantity):
+	"""Returns the names of the trips where a ticked copy got unticked."""
 	# Removed items are kept up to date too, so restoring one brings back the list as it is now.
 	linked = TripItem.objects.filter(Q(source_item=item) & _current("section__trip__"))
-	if item.name != old_name:
-		linked.update(name=item.name, packed=False)
+	# The trip's own amount wins, and its tick stays.
+	follows = linked.filter(quantity_overridden=False)
+	renamed = item.name != old_name
+	untick = linked if renamed else follows if _amount_went_up(old_quantity, item.quantity) else linked.none()
+	ticked = untick.filter(packed=True, removed=False).values_list("section__trip__name", flat=True)
+	unticked_trips = sorted(set(ticked), key=str.casefold)
+	if renamed:
+		linked.update(name=item.name)
 	if item.quantity != old_quantity:
-		# The trip's own amount wins, and its tick stays.
-		linked.filter(quantity_overridden=False).update(quantity=item.quantity, packed=False)
+		follows.update(quantity=item.quantity)
+	untick.update(packed=False)
+	return unticked_trips
 
 
 def sync_item_deleted(item):
@@ -88,7 +101,9 @@ def catch_up_trip(trip):
 			if item.name != source.name:
 				item.name, item.packed = source.name, False
 			if item.quantity != source.quantity and not item.quantity_overridden:
-				item.quantity, item.packed = source.quantity, False
+				if _amount_went_up(item.quantity, source.quantity):
+					item.packed = False
+				item.quantity = source.quantity
 			item.save(update_fields=["name", "quantity", "packed"])
 		_renumber(section)
 

@@ -131,11 +131,16 @@ class SavedListItemViewSet(viewsets.ModelViewSet):
 			item = serializer.save(order=next_order(saved_list.items.all()))
 			sync.sync_item_created(item)
 
+	def update(self, request, *args, **kwargs):
+		response = super().update(request, *args, **kwargs)
+		response.data["unticked_trips"] = self.unticked_trips
+		return response
+
 	@transaction.atomic
 	def perform_update(self, serializer):
 		old_name, old_quantity = serializer.instance.name, serializer.instance.quantity
 		item = serializer.save()
-		sync.sync_item_updated(item, old_name, old_quantity)
+		self.unticked_trips = sync.sync_item_updated(item, old_name, old_quantity)
 
 	@transaction.atomic
 	def perform_destroy(self, item):

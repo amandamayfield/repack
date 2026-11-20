@@ -126,6 +126,51 @@ def test_quantity_change_updates_and_unticks(auth_client):
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("quantity", [1, None])
+def test_lowering_or_clearing_quantity_keeps_the_tick(auth_client, quantity):
+	c, _ = auth_client
+	lst, items = _toiletries(c)
+	trip, _ = _trip_with(c, lst)
+	_tick(c, _item(c, trip, "Sunscreen"))
+
+	r = c.patch(f"/api/saved-list-items/{items['Sunscreen']['id']}/", {"quantity": quantity}, format="json")
+
+	assert _shape(c, trip)[1] == ("Sunscreen", quantity, True)
+	assert r.data["unticked_trips"] == []
+
+
+@pytest.mark.django_db
+def test_adding_an_amount_above_one_unticks(auth_client):
+	c, _ = auth_client
+	lst, items = _toiletries(c)
+	trip, _ = _trip_with(c, lst)
+	_tick(c, _item(c, trip, "Toothbrush"))
+
+	c.patch(f"/api/saved-list-items/{items['Toothbrush']['id']}/", {"quantity": 2}, format="json")
+
+	assert _shape(c, trip)[0] == ("Toothbrush", 2, False)
+
+
+@pytest.mark.django_db
+def test_list_edit_names_the_trips_it_unticked(auth_client):
+	c, _ = auth_client
+	lst, items = _toiletries(c)
+	paris, _ = _trip_with(c, lst, name="Paris")
+	lisbon, _ = _trip_with(c, lst, name="Lisbon")
+	_trip_with(c, lst, name="Rome")  # current, but not ticked
+	porto, _ = _trip_with(c, lst, name="Porto")  # ticked, then removed
+	past, _ = _trip_with(c, lst, dates=LAST_MONTH, name="Berlin")
+	for trip in (paris, lisbon, porto, past):
+		_tick(c, _item(c, trip, "Toothbrush"))
+	c.delete(f"/api/trip-items/{_item(c, porto, 'Toothbrush')['id']}/")
+
+	r = c.patch(f"/api/saved-list-items/{items['Toothbrush']['id']}/", {"name": "Electric toothbrush"}, format="json")
+
+	assert r.status_code == 200
+	assert r.data["unticked_trips"] == ["Lisbon", "Paris"]
+
+
+@pytest.mark.django_db
 def test_unchanged_save_leaves_ticks_alone(auth_client):
 	c, _ = auth_client
 	lst, items = _toiletries(c)
@@ -345,6 +390,19 @@ def test_past_trip_catches_up_when_end_date_moves_forward(auth_client):
 	]
 	# Shampoo stays deleted on this trip, and Comb is gone because the list dropped it.
 	assert not TripItem.objects.filter(section_id=section["id"], name="Comb").exists()
+
+
+@pytest.mark.django_db
+def test_catch_up_keeps_the_tick_when_the_amount_went_down(auth_client):
+	c, _ = auth_client
+	lst, items = _toiletries(c)
+	trip, _ = _trip_with(c, lst, dates=LAST_MONTH)
+	_tick(c, _item(c, trip, "Sunscreen"))
+	c.patch(f"/api/saved-list-items/{items['Sunscreen']['id']}/", {"quantity": 1}, format="json")
+
+	c.patch(f"/api/trips/{trip['id']}/", {"end_date": NEXT_MONTH[1]}, format="json")
+
+	assert _shape(c, trip)[1] == ("Sunscreen", 1, True)
 
 
 @pytest.mark.django_db

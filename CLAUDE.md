@@ -56,7 +56,7 @@ React 19 (Vite) → Django 5.2 + DRF → PostgreSQL 16
 ### Sync rules (`sync.py`)
 - A trip is **current** when `end_date` is empty or today or later (server date, UTC). Only current trips sync; past trips stay as they were.
 - Removed items still get list renames and amount changes, so a restored item matches the list as it is now.
-- List item added → appended after the section's synced items, before extras. Renamed → renamed and unticked. Amount changed → updated and unticked, unless the trip set its own amount (`quantity_overridden`), which wins and keeps its tick. Deleted → removed from current trips.
+- List item added → appended after the section's synced items, before extras. Renamed → renamed and unticked. Amount changed → updated, and unticked only if it went up (a blank amount counts as 1), unless the trip set its own amount (`quantity_overridden`), which wins and keeps its tick. Deleted → removed from current trips.
 - List renamed → past sections keep the old name. List deleted → removed from current trips; past trips keep it as a trip-only section whose items become extras.
 - A trip whose end date moves from past to current catches up (`catch_up_trip`).
 - Duplicate trip rebuilds synced sections from the list as it is now, then reapplies the trip's own amounts and deletions; extras and trip-only sections are copied; nothing is ticked. The copy takes the name and dates it's given; with no name it's the next free "Copy of …", then "(2)", "(3)"… (`sync.copy_name`, also sent as the detail's `copy_name` for the form to prefill).
@@ -78,6 +78,7 @@ CRUD (DRF routers):
   - `GET saved-lists/` returns summaries without items; the detail view embeds `items`.
   - `GET trips/` returns `packed_count` and `total_count` (computed in the database, `removed` left out); the detail view embeds `sections`, each `{id, name, saved_list, is_synced, order, items, removed_items}` (`removed_items` is `[{id, name}]`).
 - `order` is assigned by the server on create (appended last). Clients don't send it.
+- `PATCH saved-list-items/{id}/` also returns `unticked_trips`: the names of current trips where that edit unticked the item. The list editor shows them.
 
 Trip sections:
 - `POST trip-sections/` with `{trip, saved_list}` copies the list in; with `{trip, name}` makes a trip-only heading. The same list twice on one trip is a **400** `{saved_list: ["This list is already on this trip."]}`.

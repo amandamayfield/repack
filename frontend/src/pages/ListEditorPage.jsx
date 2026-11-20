@@ -18,6 +18,7 @@ export default function ListEditorPage() {
   const { confirm, dialog } = useDialog();
   const [editingDetails, setEditingDetails] = useState(false);
   const [actionError, setActionError] = useState(null);
+  const [untickNotice, setUntickNotice] = useState(null);
 
   if (loading) return <p role="status">Loading list…</p>;
   if (error) return <p role="alert">Couldn't load this list.</p>;
@@ -29,6 +30,22 @@ export default function ListEditorPage() {
       method: "POST",
       body: { saved_list: list.id, ...body },
     });
+    reload();
+  }
+
+  async function handleSaveItem(item, body) {
+    setUntickNotice(null);
+    const saved = await api(`/saved-list-items/${item.id}/`, {
+      method: "PATCH",
+      body,
+    });
+    const trips = saved.unticked_trips;
+    if (trips.length > 0) {
+      const count = `${trips.length} current ${trips.length === 1 ? "trip" : "trips"}`;
+      setUntickNotice(
+        `Unticked "${saved.name}" on ${count}: ${trips.join(", ")}. Pack it again there.`,
+      );
+    }
     reload();
   }
 
@@ -93,6 +110,11 @@ export default function ListEditorPage() {
           {actionError}
         </p>
       )}
+      {untickNotice && (
+        <p role="status" className="form-notice">
+          {untickNotice}
+        </p>
+      )}
 
       {list.items.length === 0 ? (
         <p className="empty-state">
@@ -104,13 +126,7 @@ export default function ListEditorPage() {
             <ItemRow
               key={item.id}
               item={item}
-              onSave={async (body) => {
-                await api(`/saved-list-items/${item.id}/`, {
-                  method: "PATCH",
-                  body,
-                });
-                reload();
-              }}
+              onSave={(body) => handleSaveItem(item, body)}
               onDelete={() => handleDeleteItem(item)}
             />
           ))}

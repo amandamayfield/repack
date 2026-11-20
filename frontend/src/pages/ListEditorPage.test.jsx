@@ -107,7 +107,7 @@ test("editing an item PATCHes its fields", async () => {
   baseMock({
     handler: (path, opts) =>
       path === "/saved-list-items/1/" && opts?.method === "PATCH"
-        ? Promise.resolve({ id: 1 })
+        ? Promise.resolve({ id: 1, name: "Shirts", unticked_trips: [] })
         : undefined,
   });
   renderEditor();
@@ -134,6 +134,58 @@ test("editing an item PATCHes its fields", async () => {
       body: { name: "Shirts", quantity: 6 },
     }),
   );
+});
+
+async function saveShirtsAs(quantity) {
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Edit Shirts" }),
+  );
+  const qty = screen.getByLabelText("Quantity (optional)", {
+    selector: "#edit-1-qty",
+  });
+  await userEvent.clear(qty);
+  await userEvent.type(qty, String(quantity));
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+}
+
+test("an edit that unticks items on trips says which trips", async () => {
+  baseMock({
+    handler: (path, opts) =>
+      path === "/saved-list-items/1/" && opts?.method === "PATCH"
+        ? Promise.resolve({
+            id: 1,
+            name: "Shirts",
+            unticked_trips: ["Lisbon", "Paris"],
+          })
+        : undefined,
+  });
+  renderEditor();
+
+  await saveShirtsAs(6);
+
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    'Unticked "Shirts" on 2 current trips: Lisbon, Paris. Pack it again there.',
+  );
+});
+
+test("an edit that unticks nothing shows no notice", async () => {
+  baseMock({
+    handler: (path, opts) =>
+      path === "/saved-list-items/1/" && opts?.method === "PATCH"
+        ? Promise.resolve({ id: 1, name: "Shirts", unticked_trips: [] })
+        : undefined,
+  });
+  renderEditor();
+
+  await saveShirtsAs(2);
+
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith("/saved-list-items/1/", {
+      method: "PATCH",
+      body: { name: "Shirts", quantity: 2 },
+    }),
+  );
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
 });
 
 test("deleting an item (confirmed) issues a DELETE", async () => {
