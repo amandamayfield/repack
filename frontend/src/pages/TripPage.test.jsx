@@ -447,6 +447,63 @@ test("renaming a section uses the prompt and PATCHes its name", async () => {
   );
 });
 
+test("a refused trip action shows the server's reason", async () => {
+  baseMock({
+    handler: (path, opts) =>
+      path === "/trip-sections/11/" && opts?.method === "PATCH"
+        ? Promise.reject(
+            new ApiError(400, {
+              name: ["Ensure this field has no more than 150 characters."],
+            }),
+          )
+        : undefined,
+  });
+  renderTrip();
+  await loaded();
+
+  await userEvent.click(screen.getByRole("button", { name: "Rename Camping" }));
+  const dialog = await screen.findByRole("dialog");
+  await userEvent.click(within(dialog).getByRole("button", { name: "Rename" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Ensure this field has no more than 150 characters.",
+  );
+});
+
+test("a trip action that fails for another reason still says to try again", async () => {
+  baseMock({
+    handler: (path, opts) =>
+      path === "/trip-sections/11/" && opts?.method === "PATCH"
+        ? Promise.reject(new ApiError(500, { detail: "Server Error" }))
+        : undefined,
+  });
+  renderTrip();
+  await loaded();
+
+  await userEvent.click(screen.getByRole("button", { name: "Rename Camping" }));
+  const dialog = await screen.findByRole("dialog");
+  await userEvent.click(within(dialog).getByRole("button", { name: "Rename" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    'Couldn\'t rename "Camping". Try again.',
+  );
+});
+
+test("a refused tick shows the server's reason", async () => {
+  baseMock({
+    handler: (path, opts) =>
+      path === "/trip-items/1/" && opts?.method === "PATCH"
+        ? Promise.reject(new ApiError(400, { detail: "Not now." }))
+        : undefined,
+  });
+  renderTrip();
+  await loaded();
+
+  await userEvent.click(screen.getByRole("checkbox", { name: /Socks/ }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("Not now.");
+});
+
 test("move up and move down reorder the sections", async () => {
   baseMock();
   renderTrip();

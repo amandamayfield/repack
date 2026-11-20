@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
+import { errorMessage } from "../api/ApiError";
 import { useDialog } from "../hooks/useDialog";
 import { useFetch } from "../hooks/useFetch";
 import { computeProgress } from "../lib/progress";
@@ -90,10 +91,12 @@ function TripDetail({ trip, reload }) {
         method: "PATCH",
         body: { packed },
       });
-    } catch {
+    } catch (err) {
       // Revert on failure so the checkbox never lies about server state.
       setPacked(changed, !packed);
-      setActionError("Couldn't update that item. Try again.");
+      setActionError(
+        errorMessage(err, "Couldn't update that item. Try again."),
+      );
     }
   }
 
@@ -127,9 +130,11 @@ function TripDetail({ trip, reload }) {
           ? { method: "POST", body: { section: section.id } }
           : { method: "POST" },
       );
-    } catch {
+    } catch (err) {
       setPacked(ticked, true);
-      setActionError("Couldn't untick those items. Try again.");
+      setActionError(
+        errorMessage(err, "Couldn't untick those items. Try again."),
+      );
     }
   }
 
@@ -138,8 +143,8 @@ function TripDetail({ trip, reload }) {
     try {
       await request();
       reload();
-    } catch {
-      setActionError(failure);
+    } catch (err) {
+      setActionError(errorMessage(err, failure));
     }
   }
 
@@ -271,8 +276,10 @@ function TripDetail({ trip, reload }) {
     try {
       await api(`/trips/${trip.id}/`, { method: "DELETE" });
       navigate("/trips");
-    } catch {
-      setActionError("Couldn't delete this trip. Try again.");
+    } catch (err) {
+      setActionError(
+        errorMessage(err, "Couldn't delete this trip. Try again."),
+      );
     }
   }
 
